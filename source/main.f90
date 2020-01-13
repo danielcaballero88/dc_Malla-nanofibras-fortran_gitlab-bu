@@ -35,51 +35,122 @@ program hello
 !    read(fid,*) nmallas
 !    CLOSE(unit=fid)
 
+    mallaname = "default"
+
     ! ==========
-    opcion = 2
+    opcion = 3
     ! ==========
     select case (opcion)
     ! ==========
     case (1)
     ! ==========
-        write(*,*) "Leer malla, intersectar fibras y reescribir:"
-        filename = "Malla.txt"
-        CALL leer_malla(MC, filename)
-        ! Hago la interseccion muchas veces porque cada vez tengo la limitacion de no cortar al mismo segmento dos veces
-        i = 0
-        write(*,*) "Intersectando fibras"
-        DO WHILE (.true.)
-            i = i+1
-            WRITE(*,'(I4)', ADVANCE='no') i
-            CALL intersectar_fibras_3(MC, MC2, .FALSE., iStat1) ! dentro de la misma capa
-            MC = MC2
-            CALL intersectar_fibras_3(MC, MC2, .TRUE., iStat2) ! con capas adyacentes
-            MC = MC2
-            IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
-        END DO
-        write(*,*)
-
-        write(*,*) "Escribiendo malla intersectada"
-        filename = "Malla_i.txt"
-        CALL escribir_malla(mc, filename)
-        write(*,*) "Malla intersectada OK"
+        call main_intersectar(mallaname)
     ! ==========
     case (2)
     ! ==========
-        write(*,*) "Leer malla intersectada y generar malla simplificada:"
-        filename = "Malla_i.txt"
-        call leer_malla(mc, filename)
-        call Desde_MallaCom(mc, ms, 2, [10.d0, .1d0])
-        write(*,*) "Escribiendo mallita"
-        filename = "Malla_s.txt"
-        CALL escribir_mallita(ms, filename)
-        write(*,*) "Malla simplificada OK"
+        call main_simplificar(mallaname)
     ! ==========
     case (3)
     ! ==========
+        call main_equilibrio(mallaname)
+    ! ==========
+    end select
+    ! ==========
+
+end program
+! ==========================================================================
+! ==========================================================================
+! ==========================================================================
+
+! ==========================================================================
+subroutine main_intersectar(filename_malla_in)
+    use class_malla_completa
+    implicit none
+    CHARACTER(LEN=120), intent(in) :: filename_malla_in
+    character(len=120) :: filename_malla_in2, filename_malla_out
+    TYPE(MallaCom) :: MC, MC2
+    integer :: i
+    integer :: iStat1, iStat2
+
+    if (trim(filename_malla_in) == "default") then
+        filename_malla_in2 = "Malla.txt"
+    else
+        filename_malla_in2 = filename_malla_in
+    end if
+
+    write(*,*) "Leer malla, intersectar fibras y reescribir:"
+    CALL leer_malla(MC, filename_malla_in2)
+    ! Hago la interseccion muchas veces porque cada vez tengo la limitacion de no cortar al mismo segmento dos veces
+    i = 0
+    write(*,*) "Intersectando fibras"
+    DO WHILE (.true.)
+        i = i+1
+        WRITE(*,'(I4)', ADVANCE='no') i
+        CALL intersectar_fibras_3(MC, MC2, .FALSE., iStat1) ! dentro de la misma capa
+        MC = MC2
+        CALL intersectar_fibras_3(MC, MC2, .TRUE., iStat2) ! con capas adyacentes
+        MC = MC2
+        IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
+    END DO
+    write(*,*)
+
+    write(*,*) "Escribiendo malla intersectada"
+    filename_malla_out = "_i"
+    call modify_txt_filename(filename_malla_in2, filename_malla_out)
+    CALL escribir_malla(mc, filename_malla_out)
+    write(*,*) "Malla intersectada OK"
+
+end subroutine main_intersectar
+! ==========================================================================
+
+! ==========================================================================
+subroutine main_simplificar(filename_malla_in)
+    use class_malla_completa
+    use class_mallita
+    implicit none
+    CHARACTER(LEN=120), intent(in) :: filename_malla_in
+    character(len=120) :: filename_malla_in2, filename_malla_out
+    type(MallaCom) :: mc
+    type(MallaSim) :: ms
+
+    if (trim(filename_malla_in) == "default") then
+        filename_malla_in2 = "Malla_i.txt"
+    else
+        filename_malla_in2 = filename_malla_in
+    end if
+
+    write(*,*) "Leer malla intersectada y generar malla simplificada:"
+    call leer_malla(mc, filename_malla_in2)
+    call Desde_MallaCom(mc, ms, 2, [10.d0, .1d0])
+
+    write(*,*) "Escribiendo mallita"
+    filename_malla_out = "_s"
+    call modify_txt_filename(filename_malla_in2, filename_malla_out)
+    CALL escribir_mallita(ms, filename_malla_out)
+    write(*,*) "Malla simplificada OK"
+
+end subroutine main_simplificar
+! ==========================================================================
+
+! ==========================================================================
+subroutine main_equilibrio(filename_malla_in)
+    use class_mallita
+    implicit none
+    CHARACTER(LEN=120), intent(in) :: filename_malla_in
+    character(len=120) :: filename_malla_in2, filename_malla_out
+    type(MallaSim) :: ms
+    real(8), allocatable :: r1(:,:)
+    real(8) :: Fmacro(2,2)
+    integer :: n, iStat1
+
+    if (trim(filename_malla_in) == "default") then
+        filename_malla_in2 = "Malla_i_s.txt"
+    else
+        filename_malla_in2 = filename_malla_in
+    end if
+
         write(*,*) "Calculando equilibrio"
-        filename = "Malla_s.txt"
-        call leer_mallita(ms, filename)
+        call leer_mallita(ms, filename_malla_in2)
         n = ms%nnods
         allocate( r1(2,n) )
         Fmacro(1,:) = [1.2d0, 0.d0]
@@ -88,14 +159,26 @@ program hello
         call calcular_equilibrio(ms,r1,10000,1.d-1,iStat1)
 
         ms%rnods = r1
-
-        filename = "Malla_sd.txt"
-        call escribir_mallita(ms, filename)
+        filename_malla_out = "_e"
+        call modify_txt_filename(filename_malla_in2, filename_malla_out)
+        call escribir_mallita(ms, filename_malla_out)
         write(*,*) "Equilibrio calculado OK"
-    ! ==========
-    end select
-    ! ==========
+end subroutine main_equilibrio
+! ==========================================================================
 
-end program
+! ==========================================================================
+subroutine modify_txt_filename(txt_filename_in, txt_filename_out)
+    ! Agrego caracteres a un archivo txt antes de la extension ".txt"7
+    ! El nombre original del archivo viene en txt_filename_in, que se mantiene sin modificar
+    ! Los caracteres a agregar van en la variable txt_filename_out
+    ! que es donde tambien se guarda el nombre modificado del archivo
+    implicit none
+    character(len=120), intent(in) :: txt_filename_in
+    character(len=120), intent(inout) :: txt_filename_out
+    integer :: nchars
 
+    nchars = len(trim(txt_filename_in))
+    txt_filename_out = trim(txt_filename_in(1:nchars-4)) // trim(txt_filename_out) // ".txt"
 
+end subroutine modify_txt_filename
+! ==========================================================================
