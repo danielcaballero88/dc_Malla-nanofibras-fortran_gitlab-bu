@@ -8,15 +8,20 @@
 		<Build>
 			<Target title="Debug">
 				<Option output="Debug/malla_nanofibras_fortran" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="mallas" />
 				<Option object_output="Debug/" />
 				<Option type="1" />
 				<Option compiler="gfortran" />
 				<Compiler>
 					<Add option="-g" />
 				</Compiler>
+				<Linker>
+					<Add library="lapack" />
+				</Linker>
 			</Target>
 			<Target title="Release">
 				<Option output="Release/malla_nanofibras_fortran" prefix_auto="1" extension_auto="1" />
+				<Option working_dir="mallas" />
 				<Option object_output="Release/" />
 				<Option type="1" />
 				<Option compiler="gfortran" />
@@ -25,13 +30,28 @@
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
+					<Add library="lapack" />
 				</Linker>
 			</Target>
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename="main.f90" />
+		<Unit filename="source/Aux.f90">
+			<Option weight="0" />
+		</Unit>
+		<Unit filename="source/class_malla_completa.f90">
+			<Option weight="1" />
+		</Unit>
+		<Unit filename="source/class_mallita.f90">
+			<Option weight="2" />
+		</Unit>
+		<Unit filename="source/fseidel.f90">
+			<Option weight="0" />
+		</Unit>
+		<Unit filename="source/main.f90">
+			<Option weight="3" />
+		</Unit>
 		<Extensions>
 			<envvars />
 			<code_completion />

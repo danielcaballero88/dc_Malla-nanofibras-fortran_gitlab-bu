@@ -29,33 +29,40 @@ program hello
     CALL GETCWD(cwd)
     PRINT *, "Current Working Directory:", cwd
 
-!    filename = "000_mallas_filenames.txt"
-!    fid = get_file_unit()
-!    OPEN(unit=fid, file=trim(filename), status="old")
-!    read(fid,*) nmallas
-!    CLOSE(unit=fid)
+    filename = "000_mallas_filenames.txt"
+    fid = get_file_unit()
+    OPEN(unit=fid, file=trim(filename), status="old")
+    read(fid,*) opcion
+    read(fid,*) nmallas
 
-    mallaname = "default"
-
-    ! ==========
-    opcion = 3
-    ! ==========
-    select case (opcion)
-    ! ==========
-    case (1)
-    ! ==========
+    do i=1,nmallas
+        read(fid,*) mallaname
+        write(*,*) "Intersectando malla:"
+        write(*,*) mallaname
         call main_intersectar(mallaname)
-    ! ==========
-    case (2)
-    ! ==========
-        call main_simplificar(mallaname)
-    ! ==========
-    case (3)
-    ! ==========
-        call main_equilibrio(mallaname)
-    ! ==========
-    end select
-    ! ==========
+    end do
+
+    CLOSE(unit=fid)
+
+    !    mallaname = "default"
+    !    opcion = 1
+!    ! ==========
+!    select case (opcion)
+!    ! ==========
+!    case (1)
+!    ! ==========
+!        call main_intersectar(mallaname)
+!    ! ==========
+!    case (2)
+!    ! ==========
+!        call main_simplificar(mallaname)
+!    ! ==========
+!    case (3)
+!    ! ==========
+!        call main_equilibrio(mallaname)
+!    ! ==========
+!    end select
+!    ! ==========
 
 end program
 ! ==========================================================================
@@ -83,6 +90,9 @@ subroutine main_intersectar(filename_malla_in)
     ! Hago la interseccion muchas veces porque cada vez tengo la limitacion de no cortar al mismo segmento dos veces
     i = 0
     write(*,*) "Intersectando fibras"
+    iStat1 = 0
+    iStat2 = 0
+    write(*,*) mc%nsegs
     DO WHILE (.true.)
         i = i+1
         WRITE(*,'(I4)', ADVANCE='no') i
@@ -90,7 +100,9 @@ subroutine main_intersectar(filename_malla_in)
         MC = MC2
         CALL intersectar_fibras_3(MC, MC2, .TRUE., iStat2) ! con capas adyacentes
         MC = MC2
+        write(*,*) mc%nsegs
         IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
+        if (i==5) exit
     END DO
     write(*,*)
 
