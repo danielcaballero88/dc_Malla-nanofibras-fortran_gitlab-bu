@@ -1,0 +1,6 @@
+# compiled files
+/Debug/*
+/Release/*
+# codeblocks files (.cbp I keep)
+*.depend
+*.layout
