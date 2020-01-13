@@ -4,3 +4,5 @@
 # codeblocks files (.cbp I keep)
 *.depend
 *.layout
+# core file 
+core
