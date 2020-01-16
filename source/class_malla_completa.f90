@@ -286,6 +286,9 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
             ! recorro los segmentos de la fibra f1
             DO s1_f1 = 1,m_in%fibsne(f1)
                 s1 = m_in%fibsje( m_in%fibsie(f1)-1 + s1_f1 )
+!                if (s1==1) then
+!                    write(*,*) s1
+!                end if
                 ! si el segmento s1 ya sufrio una interseccion paso al siguiente
                 n11 = m_in%segs(1,s1)
                 n12 = m_in%segs(2,s1)
@@ -328,6 +331,9 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
 !                        IF ( (s1==81).AND.(s2==393) ) THEN
 !                            aux1 = 1
 !                        END IF
+!                        if (s2==472) then
+!                            write(*,*) s2
+!                        end if
                         CALL intersectar_segmentos(r11, r12, r21, r22, rin, iStat)
                         IF (iStat == 2) THEN ! 2 es interseccion tipo medio-medio
 !                            IF ((n11==386).OR.(n21==386)) THEN

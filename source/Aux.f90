@@ -336,7 +336,7 @@ FUNCTION iguales(x,y,tol_in) RESULT(igual)
     IF (PRESENT(tol_in)) THEN
         tol = tol_in
     ELSE
-        tol = 1.d-6
+        tol = 1.d-10
     END IF
 
     igual = DABS(x-y)<tol

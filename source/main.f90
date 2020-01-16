@@ -87,6 +87,9 @@ subroutine main_intersectar(filename_malla_in)
 
     write(*,*) "Leer malla, intersectar fibras y reescribir:"
     CALL leer_malla(MC, filename_malla_in2)
+!    if (MC%sidelen > 99.d0) then
+!        write(*,*) "malla con problema"
+!    end if
     ! Hago la interseccion muchas veces porque cada vez tengo la limitacion de no cortar al mismo segmento dos veces
     i = 0
     write(*,*) "Intersectando fibras"
@@ -102,7 +105,7 @@ subroutine main_intersectar(filename_malla_in)
         MC = MC2
         write(*,*) mc%nsegs
         IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
-        if (i==5) exit
+        if (i==1) exit
     END DO
     write(*,*)
 
