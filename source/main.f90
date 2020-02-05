@@ -105,7 +105,7 @@ subroutine main_intersectar(filename_malla_in)
         MC = MC2
         write(*,*) mc%nsegs
         IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
-        if (i==1) exit
+        if (i==10) exit
     END DO
     write(*,*)
 

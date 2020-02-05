@@ -319,6 +319,9 @@ END SUBROUTINE escribir_mallita
 ! ================================================================================
 ! ================================================================================
 subroutine deformar_afin(masim, FF)
+    ! Deforma la mallita de manera Afin: r = F r0
+    ! input: FF (tensor gradiente de deformaciones 2x2)
+    !
     implicit none
     ! ----------
     type(MallaSim), intent(inout) :: masim
@@ -350,6 +353,10 @@ end subroutine deformar_afin
 ! ================================================================================
 ! ================================================================================
 subroutine calcular_fuerza_fibra(masim, f, dr_f, fuerza, fuerzav)
+    ! Calcula la fuerza de una fibra (identificada mediante numeracion f)
+    ! dr_f es el vector de la fibra desde r_n0 hasta r_n1 (desde nodo inicial hasta nodo final)
+    ! fuerza es el modulo de la fuerza ejercida
+    ! y fuerzav es el vector fuerza
     ! ----------
     implicit none
     type(MallaSim), intent(in) :: masim
@@ -385,7 +392,114 @@ end subroutine calcular_fuerza_fibra
 
 ! ================================================================================
 ! ================================================================================
+subroutine calcular_fuerzas(masim, r1, fzas_fibs, fzas_nods)
+    ! calcula las fuerzas de las fibras y las fuerzas nodales (resultantes)
+    ! se calculan las fuerzas como vectores, entonces las dimensiones son (2,nfibs) y (2,nnods)
+    implicit none
+    type(MallaSim), intent(in) :: masim
+    real(8), intent(inout) :: r1(2,masim%nnods)
+    real(8), intent(out) :: fzas_fibs(2,masim%nfibs)
+    real(8), intent(out) :: fzas_nods(2,masim%nnods)
+    integer :: f
+    integer :: n1f, n2f
+    real(8) :: rn1f(2), rn2f(2), drf(2)
+    real(8) :: fzaf, fzafv(2)
+
+    fzas_nods = 0.d0
+    do f=1,masim%nfibs
+        ! nodos de la fibra f
+        n1f = masim%fibs(1,f)
+        n2f = masim%fibs(2,f)
+        ! posiciones de esos nodos
+        rn1f = r1(:,n1f)
+        rn2f = r1(:,n2f)
+        ! vector fibra
+        drf = rn2f - rn1f
+        ! fuerza
+        call calcular_fuerza_fibra(masim, f, drf, fzaf, fzafv)
+        fzas_fibs(:,f) = fzafv
+        fzas_nods(:,n1f) = fzas_nods(:,n1f) + fzafv
+        fzas_nods(:,n2f) = fzas_nods(:,n2f) - fzafv
+    end do
+
+end subroutine calcular_fuerzas
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
+subroutine vibrar_malla(masim, nveces, drmag, r1)
+    ! Mueve los nodos nveces segun la direccion de la resultante
+    ! Todos los nodos se mueven segun el valor drmag
+    ! Cada vez se calculan las fuerzas de las fibras y la resultante
+    ! Entonces la malla va "vibrando" hasta su posicion de equilibrio
+    ! ----------
+    implicit none
+    ! ----------
+    type(MallaSim), intent(inout) :: masim
+    integer, intent(in) :: nveces
+    real(8), intent(in) :: drmag
+    real(8), intent(inout) :: r1(2,masim%nnods)
+    ! ----------
+    real(8) :: fzas_fibs(2,masim%nfibs)
+    real(8) :: fzas_nods(2,masim%nnods)
+    integer :: vez, n
+    real(8) :: fza_n(2), fza_n_mag, dr_n(2)
+    ! ----------
+
+    do vez=1,nveces
+        call calcular_fuerzas(masim, r1, fzas_fibs, fzas_nods)
+        do n=1,masim%nnods
+            fza_n = fzas_nods(:,n)
+            fza_n_mag = dsqrt(sum(fza_n*fza_n))
+            dr_n = drmag * fza_N / fza_n_mag
+            r1(:,n) = r1(:,n) + dr_n(:)
+        end do
+    end do
+
+    ! ----------
+end subroutine vibrar_malla
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
+subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags, r1)
+    ! Forma de calcular el equilibrio moviendo los nodos de forma iterativa segun
+    ! la direccion de la resultante en un valor prescripto de desplazamiento (drmag)
+    ! Se hace de forma progresiva empezando con drmag grande y terminando con drmag chico
+    ! ----------
+    implicit none
+    ! ----------
+    type(MallaSim), intent(inout) :: masim
+    integer, intent(in) :: npasos
+    integer, intent(in) :: vec_veces(npasos)
+    real(8), intent(in) :: vec_drmags(npasos)
+    real(8), intent(inout) :: r1(2,masim%nnods)
+    ! ----------
+    integer :: paso
+    integer :: nveces
+    real(8) :: drmag
+    ! ----------
+
+    do paso=1,npasos
+        nveces = vec_veces(paso)
+        drmag = vec_drmags(paso)
+        call vibrar_malla(masim, nveces, drmag, r1)
+    end do
+
+    ! ----------
+end subroutine
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
 subroutine calcular_equilibrio(masim, r1, maxiter, tol, iStatus)
+    ! subrutina obsoleta para calcular el equilibrio de la malla
     implicit none
     ! ----------
     type(MallaSim), intent(in) :: masim
@@ -462,44 +576,9 @@ subroutine calcular_equilibrio(masim, r1, maxiter, tol, iStatus)
     ! ----------
 
     ! ----------
-end subroutine
+end subroutine calcular_equilibrio
 ! ================================================================================
 ! ================================================================================
-
-
-! ================================================================================
-! ================================================================================
-subroutine calcular_fuerzas(masim, fzas_fibs, fzas_nods)
-    implicit none
-    type(MallaSim), intent(in) :: masim
-    real(8), intent(out) :: fzas_fibs(2,masim%nfibs)
-    real(8), intent(out) :: fzas_nods(2,masim%nnods)
-    integer :: f
-    integer :: n1f, n2f
-    real(8) :: rn1f(2), rn2f(2), drf(2)
-    real(8) :: fzaf, fzafv(2)
-
-    fzas_nods = 0.d0
-    do f=1,masim%nfibs
-        ! nodos de la fibra f
-        n1f = masim%fibs(1,f)
-        n2f = masim%fibs(2,f)
-        ! posiciones de esos nodos
-        rn1f = masim%rnods(:,n1f)
-        rn2f = masim%rnods(:,n2f)
-        ! vector fibra
-        drf = rn2f - rn1f
-        ! fuerza
-        call calcular_fuerza_fibra(masim, f, drf, fzaf, fzafv)
-        fzas_fibs(:,f) = fzafv
-        fzas_nods(:,n1f) = fzas_nods(:,n1f) + fzafv
-        fzas_nods(:,n2f) = fzas_nods(:,n2f) - fzafv
-    end do
-
-end subroutine
-! ================================================================================
-! ================================================================================
-
 
 
 ! ================================================================================
