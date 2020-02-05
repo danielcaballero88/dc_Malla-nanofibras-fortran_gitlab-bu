@@ -301,12 +301,17 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
                     ! recorro las fibras de la capa siguiente
                     ! o sea que si estoy en la ultima capa, no lo hago
                     IF (c1==m_in%ncaps) THEN
-                        CYCLE
+!                        CYCLE ! si activo esto la ultima capa no intersecta con la primera
+                        i1fibs1 = 1
+                        nfibs1 = m_in%capsne(1) ! voy a chequear la ultima capa con la primera
+                        allocate( fibs1(nfibs1) )
+                        fibs1 = m_in%capsje( m_in%capsie(1) : m_in%capsie(1)-1 + nfibs1 )
+                    else
+                        i1fibs1 = 1
+                        nfibs1 = m_in%capsne(c1+1)
+                        ALLOCATE( fibs1(nfibs1) )
+                        fibs1 = m_in%capsje( m_in%capsie(c1+1) : m_in%capsie(c1+1)-1 + nfibs1 )
                     END IF
-                    i1fibs1 = 1
-                    nfibs1 = m_in%capsne(c1+1)
-                    ALLOCATE( fibs1(nfibs1) )
-                    fibs1 = m_in%capsje( m_in%capsie(c1+1) : m_in%capsie(c1+1)-1 + nfibs1 )
                 ELSE
                     ! recorro las fibras restantes de la capa c1 para intersectar
                     i1fibs1 = f1_c1 + 1
