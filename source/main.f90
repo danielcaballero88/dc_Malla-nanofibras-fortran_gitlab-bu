@@ -5,19 +5,37 @@ program hello
     USE Aux
     implicit none
     ! ==========================================================================
-    CHARACTER(LEN=120) :: inFile
-    CHARACTER(LEN=120) :: outFile
-    integer :: fid
     ! ==========================================================================
     ! Current working directory
     CHARACTER(LEN=255) :: cwd
     ! ==========================================================================
     TYPE(MallaCom) :: MC, MC2
     TYPE(MallaSim) :: ms, ms2
+    CHARACTER(LEN=120) :: configfile
+    integer :: fid_cf
+    integer :: fid_lista_mallas
     integer :: nmallas
+    integer :: num_instruc
+    integer, allocatable :: lista_instruc(:)
+    integer :: i_etiqueta
+    character(len=3) :: str_etiqueta
+    character(len=120) :: str_instruccion
+    integer :: j_instr
+    ! ----------
+    ! variables para instruccion "Intersectar"
+    integer :: opcion_archivo
+    character(len=120) :: nombre_archivo, nombre_malla
+    integer :: num_pasadas
+    logical :: period_intersec
+    integer :: j_malla
+    ! ----------
+    ! variables para instruccion "Simplificar"
+    ! ----------
+    ! variables para instruccion "Equilibrar"
+    ! ----------
     CHARACTER(LEN=120) :: filename, mallaname
     integer :: i,j,k,n,m
-    INTEGER :: iStat1, iStat2
+    INTEGER :: iStat, iStat1, iStat2
     real(8), allocatable :: r1(:,:), Ag(:,:), bg(:), dr(:,:)
     character(len=120) :: formato
     real(8), allocatable :: fuerzas_f(:,:), fuerzas_n(:,:)
@@ -25,24 +43,91 @@ program hello
     integer :: opcion ! 1=intersectar, 2=simplificar, 3=equilibrio
     ! ==========================================================================
 
+    ! --------------------------------------------------------------------------
+    ! Imprimo carpeta de trabajo actual
     print *, "Multiscale Nanofibers Mesh RVE 2.0"
     CALL GETCWD(cwd)
     PRINT *, "Current Working Directory:", cwd
+    ! --------------------------------------------------------------------------
+    ! Leer ConfigurationFile.txt para obtener instrucciones
+    configfile = "ConfigurationFile.txt"
+    fid_cf = get_file_unit()
+    OPEN(unit=fid_cf, file=trim(configfile), status="old")
+    iStat = FindStringInFile("* Numero de acciones", fid_cf, .true.)
+    read(fid_cf,*) num_instruc
+    allocate( lista_instruc(num_instruc) )
+    read(fid_cf,*) lista_instruc
+    CLOSE(unit=fid_cf)
+    ! --------------------------------------------------------------------------
+    ! recorro las etiquetas de las instrucciones a realizar
+    do j_instr=1,num_instruc
+        ! --------------------------------------------------------------------------
+        ! busco cada etiqueta en configfile y leo la string de instruccion (es el identificador: Intersectar, Simplificar o Equilibrar)
+        i_etiqueta = lista_instruc(j_instr)
+        WRITE(str_etiqueta,'(A2,I1)') "* ", i_etiqueta
+        OPEN(unit=fid_cf, file=trim(configfile), status="old")
+        iStat = FindStringInFile(str_etiqueta, fid_cf, .true.)
+        read(fid_cf,*) str_instruccion
+        ! --------------------------------------------------------------------------
+        ! luego, segun la instruccion me fijo que hay que hacer
+        select case (trim(str_instruccion))
+        ! --------------------------------------------------------------------------
+        ! INTERSECTAR
+        case ("Intersectar")
+            ! Leo los parametros de configuracion
+            read(fid_cf,*) opcion_archivo, nombre_archivo
+            read(fid_cf,*) num_pasadas
+            read(fid_cf,*) period_intersec
+            ! Comienzo a intersectar
+            if (opcion_archivo==1) then
+                ! Caso de una sola malla a intersectar
+                call main_intersectar(nombre_archivo, num_pasadas, period_intersec)
+            elseif (opcion_archivo==2) then
+                ! Caso de una lista de mallas a intersectar, la lista se da en un archivo
+                fid_lista_mallas = get_file_unit()
+                open(unit=fid_lista_mallas, file=trim(nombre_archivo), status="old")
+                read(fid_lista_mallas,*) nmallas
+                ! Recorro las mallas de la lista, calculando las intersecciones para cada una
+                do j_malla=1,nmallas
+                    read(fid_lista_mallas,*) nombre_malla
+                    write(*,*) "Intersectando malla:"
+                    write(*,*) nombre_malla
+                    call main_intersectar(nombre_malla, num_pasadas, period_intersec)
+                end do
+                ! Cierro el archivo de la lista de mallas
+                close(unit=fid_lista_mallas)
+            else
+                ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
+                write(*,*) "Error, para Intersectar, opcion_archivo debe ser 1 o 2, y es: ", opcion_archivo
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En Instruccion: ", str_instruccion
+                stop
+            end if
+        ! FIN INTERSECTAR
+        ! --------------------------------------------------------------------------
+        ! SIMPLIFICAR
+        case ("Simplificar")
+            write(*,*) str_instruccion
+        ! FIN SIMPLIFICAR
+        ! --------------------------------------------------------------------------
+        ! EQUILIBRAR
+        case ("Equilibrar")
+            write(*,*) str_instruccion
+        ! FIN EQUILIBRAR
+        ! --------------------------------------------------------------------------
+        case default
+            write(*,*) "Instruccion desconocida: ", str_instruccion
+            write(*,*) "En etiqueta: ", str_etiqueta
+            stop
+        ! --------------------------------------------------------------------------
+        end select
+        ! --------------------------------------------------------------------------
 
-    filename = "000_mallas_filenames.txt"
-    fid = get_file_unit()
-    OPEN(unit=fid, file=trim(filename), status="old")
-    read(fid,*) opcion
-    read(fid,*) nmallas
-
-    do i=1,nmallas
-        read(fid,*) mallaname
-        write(*,*) "Intersectando malla:"
-        write(*,*) mallaname
-        call main_intersectar(mallaname)
+        close(unit=fid_cf)
     end do
+    ! --------------------------------------------------------------------------
 
-    CLOSE(unit=fid)
+
 
     !    mallaname = "default"
     !    opcion = 1
@@ -70,10 +155,12 @@ end program
 ! ==========================================================================
 
 ! ==========================================================================
-subroutine main_intersectar(filename_malla_in)
+subroutine main_intersectar(filename_malla_in, npasadas, periodicidad)
     use class_malla_completa
     implicit none
     CHARACTER(LEN=120), intent(in) :: filename_malla_in
+    integer, intent(in) :: npasadas
+    logical, intent(in) :: periodicidad
     character(len=120) :: filename_malla_in2, filename_malla_out
     TYPE(MallaCom) :: MC, MC2
     integer :: i
@@ -99,13 +186,13 @@ subroutine main_intersectar(filename_malla_in)
     DO WHILE (.true.)
         i = i+1
         WRITE(*,'(I4)', ADVANCE='no') i
-        CALL intersectar_fibras_3(MC, MC2, .FALSE., iStat1) ! dentro de la misma capa
+        CALL intersectar_fibras_3(MC, MC2, .FALSE., periodicidad, iStat1) ! dentro de la misma capa
         MC = MC2
-        CALL intersectar_fibras_3(MC, MC2, .TRUE., iStat2) ! con capas adyacentes
+        CALL intersectar_fibras_3(MC, MC2, .TRUE., periodicidad, iStat2) ! con capas adyacentes
         MC = MC2
         write(*,*) mc%nsegs
         IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
-        if (i==10) exit
+        if (i==npasadas) exit
     END DO
     write(*,*)
 
