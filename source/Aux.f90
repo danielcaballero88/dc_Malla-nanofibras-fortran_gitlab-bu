@@ -287,10 +287,10 @@ SUBROUTINE intersectar_segmentos(rs1n1, rs1n2, rs2n1, rs2n2, r_in, iStatus)
     ! ----------
     ! HAY INTERSECCION
     ! me fijo si ocurre en el medio de los segmentos, o si coincide con los nodos ya existentes (extremos de segmentos)
-    inex11 = iguales(s_in,0.d0)
-    inex12 = iguales(s_in,s12(1))
-    inex21 = iguales(s21(2),0.d0)
-    inex22 = iguales(s22(2),0.d0)
+    inex11 = iguales(s_in, 0.d0, tol_in=1.d-2)
+    inex12 = iguales(s_in,s12(1), tol_in=1.d-2)
+    inex21 = iguales(s21(2),0.d0, tol_in=1.d-2)
+    inex22 = iguales(s22(2),0.d0, tol_in=1.d-2)
     ! HAY VARIAS POSIBILIDADES
     ! 4: extremo-extremo
     IF ((inex11 .OR. inex12) .AND. (inex21 .OR. inex22)) THEN
