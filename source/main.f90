@@ -3,6 +3,7 @@ program hello
     USE class_malla_completa
     use class_mallita
     USE Aux
+    use programs
     implicit none
     ! ==========================================================================
     ! ==========================================================================
@@ -32,6 +33,16 @@ program hello
     ! variables para instruccion "Simplificar"
     ! ----------
     ! variables para instruccion "Equilibrar"
+    integer :: opcion_F
+    character(len=120) :: archivo_F
+    integer :: fid_F
+    real(8) :: Fmacro(2,2)
+    integer :: num_pasos_vibracion
+    integer, allocatable :: vec_veces(:)
+    real(8), allocatable :: vec_drmags(:)
+    integer :: num_F
+    integer :: j_F
+    character(len=8) :: str_j_F
     ! ----------
     CHARACTER(LEN=120) :: filename, mallaname
     integer :: i,j,k,n,m
@@ -39,7 +50,6 @@ program hello
     real(8), allocatable :: r1(:,:), Ag(:,:), bg(:), dr(:,:)
     character(len=120) :: formato
     real(8), allocatable :: fuerzas_f(:,:), fuerzas_n(:,:)
-    real(8) :: Fmacro(2,2)
     integer :: opcion ! 1=intersectar, 2=simplificar, 3=equilibrio
     ! ==========================================================================
 
@@ -107,12 +117,66 @@ program hello
         ! --------------------------------------------------------------------------
         ! SIMPLIFICAR
         case ("Simplificar")
-            write(*,*) str_instruccion
+            ! Leo los parametros de configuracion
+            read(fid_cf,*) opcion_archivo, nombre_archivo
+            ! Comienzo a simplificar
+            if (opcion_archivo==1) then
+                ! Caso de una sola malla
+                call main_simplificar(nombre_archivo)
+            elseif (opcion_archivo==2) then
+                ! Caso de una lista de mallas en un archivo
+                fid_lista_mallas = get_file_unit()
+                open(unit=fid_lista_mallas, file=trim(nombre_archivo), status="old")
+                read(fid_lista_mallas,*) nmallas
+                ! Recorro las mallas de la lista
+                do j_malla=1,nmallas
+                    read(fid_lista_mallas,*) nombre_malla
+                    write(*,*) "Simplificando malla:"
+                    write(*,*) nombre_malla
+                    call main_simplificar(nombre_malla)
+                end do
+                ! Cierro el archivo de la lista de mallas
+                close(unit=fid_lista_mallas)
+            else
+                ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
+                write(*,*) "Error, para Simplificar, opcion_archivo debe ser 1 o 2, y es: ", opcion_archivo
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En Instruccion: ", str_instruccion
+                stop
+            end if
         ! FIN SIMPLIFICAR
         ! --------------------------------------------------------------------------
         ! EQUILIBRAR
         case ("Equilibrar")
-            write(*,*) str_instruccion
+            read(fid_cf,*) opcion_archivo, nombre_archivo
+            read(fid_cf,*) num_pasos_vibracion
+            allocate( vec_veces(num_pasos_vibracion) )
+            allocate( vec_drmags(num_pasos_vibracion) )
+            read(fid_cf,*) vec_veces
+            read(fid_cf,*) vec_drmags
+            read(fid_cf,*) opcion_F
+            if (opcion_F==1) then
+                ! caso de un solo F dado en configfile
+                read(fid_cf,*) Fmacro
+                call main_equilibrar(nombre_archivo, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags)
+            elseif (opcion_F==2) then
+                ! caso de un archivo dando muchos F
+                read(fid_cf,*) archivo_F
+                fid_F = get_file_unit()
+                open(unit=fid_F, file=trim(archivo_F), status="old")
+                read(fid_F,*) num_F
+                do j_F=1,num_F
+                    read(fid_F,*) Fmacro
+                    write(str_j_F, "(A1, I7.7)") "_", j_F ! 4.4 indica que el campo es de 4 y se usan como minimo 4, entonces imprime los ceros
+                    call main_equilibrar(nombre_archivo, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                end do
+            else
+                write(*,*) "Error en opcion_F, deberia ser 1 o 2, y es: ", opcion_F
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En instruccion: ", str_instruccion
+                stop
+            end if
+        close(unit=fid_F)
         ! FIN EQUILIBRAR
         ! --------------------------------------------------------------------------
         case default
@@ -152,135 +216,4 @@ program hello
 end program
 ! ==========================================================================
 ! ==========================================================================
-! ==========================================================================
-
-! ==========================================================================
-subroutine main_intersectar(filename_malla_in, npasadas, periodicidad)
-    use class_malla_completa
-    implicit none
-    CHARACTER(LEN=120), intent(in) :: filename_malla_in
-    integer, intent(in) :: npasadas
-    logical, intent(in) :: periodicidad
-    character(len=120) :: filename_malla_in2, filename_malla_out
-    TYPE(MallaCom) :: MC, MC2
-    integer :: i
-    integer :: iStat1, iStat2
-
-    if (trim(filename_malla_in) == "default") then
-        filename_malla_in2 = "Malla.txt"
-    else
-        filename_malla_in2 = filename_malla_in
-    end if
-
-    write(*,*) "Leer malla, intersectar fibras y reescribir:"
-    CALL leer_malla(MC, filename_malla_in2)
-!    if (MC%sidelen > 99.d0) then
-!        write(*,*) "malla con problema"
-!    end if
-    ! Hago la interseccion muchas veces porque cada vez tengo la limitacion de no cortar al mismo segmento dos veces
-    i = 0
-    write(*,*) "Intersectando fibras"
-    iStat1 = 0
-    iStat2 = 0
-    write(*,*) mc%nsegs
-    DO WHILE (.true.)
-        i = i+1
-        WRITE(*,'(I4)', ADVANCE='no') i
-        CALL intersectar_fibras_3(MC, MC2, .FALSE., periodicidad, iStat1) ! dentro de la misma capa
-        MC = MC2
-        CALL intersectar_fibras_3(MC, MC2, .TRUE., periodicidad, iStat2) ! con capas adyacentes
-        MC = MC2
-        write(*,*) mc%nsegs
-        IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT
-        if (i==npasadas) exit
-    END DO
-    write(*,*)
-
-    write(*,*) "Escribiendo malla intersectada"
-    filename_malla_out = "_i"
-    call modify_txt_filename(filename_malla_in2, filename_malla_out)
-    CALL escribir_malla(mc, filename_malla_out)
-    write(*,*) "Malla intersectada OK"
-
-end subroutine main_intersectar
-! ==========================================================================
-
-! ==========================================================================
-subroutine main_simplificar(filename_malla_in)
-    use class_malla_completa
-    use class_mallita
-    implicit none
-    CHARACTER(LEN=120), intent(in) :: filename_malla_in
-    character(len=120) :: filename_malla_in2, filename_malla_out
-    type(MallaCom) :: mc
-    type(MallaSim) :: ms
-
-    if (trim(filename_malla_in) == "default") then
-        filename_malla_in2 = "Malla_i.txt"
-    else
-        filename_malla_in2 = filename_malla_in
-    end if
-
-    write(*,*) "Leer malla intersectada y generar malla simplificada:"
-    call leer_malla(mc, filename_malla_in2)
-    call Desde_MallaCom(mc, ms, 2, [10.d0, .1d0])
-
-    write(*,*) "Escribiendo mallita"
-    filename_malla_out = "_s"
-    call modify_txt_filename(filename_malla_in2, filename_malla_out)
-    CALL escribir_mallita(ms, filename_malla_out)
-    write(*,*) "Malla simplificada OK"
-
-end subroutine main_simplificar
-! ==========================================================================
-
-! ==========================================================================
-subroutine main_equilibrio(filename_malla_in)
-    use class_mallita
-    implicit none
-    CHARACTER(LEN=120), intent(in) :: filename_malla_in
-    character(len=120) :: filename_malla_in2, filename_malla_out
-    type(MallaSim) :: ms
-    real(8), allocatable :: r1(:,:)
-    real(8) :: Fmacro(2,2)
-    integer :: n, iStat1
-
-    if (trim(filename_malla_in) == "default") then
-        filename_malla_in2 = "Malla_i_s.txt"
-    else
-        filename_malla_in2 = filename_malla_in
-    end if
-
-        write(*,*) "Calculando equilibrio"
-        call leer_mallita(ms, filename_malla_in2)
-        n = ms%nnods
-        allocate( r1(2,n) )
-        Fmacro(1,:) = [1.2d0, 0.d0]
-        Fmacro(2,:) = [0.0d0, 1.d0]
-        call deformar_afin(ms, Fmacro)
-        call calcular_equilibrio(ms,r1,10000,1.d-1,iStat1)
-
-        ms%rnods = r1
-        filename_malla_out = "_e"
-        call modify_txt_filename(filename_malla_in2, filename_malla_out)
-        call escribir_mallita(ms, filename_malla_out)
-        write(*,*) "Equilibrio calculado OK"
-end subroutine main_equilibrio
-! ==========================================================================
-
-! ==========================================================================
-subroutine modify_txt_filename(txt_filename_in, txt_filename_out)
-    ! Agrego caracteres a un archivo txt antes de la extension ".txt"7
-    ! El nombre original del archivo viene en txt_filename_in, que se mantiene sin modificar
-    ! Los caracteres a agregar van en la variable txt_filename_out
-    ! que es donde tambien se guarda el nombre modificado del archivo
-    implicit none
-    character(len=120), intent(in) :: txt_filename_in
-    character(len=120), intent(inout) :: txt_filename_out
-    integer :: nchars
-
-    nchars = len(trim(txt_filename_in))
-    txt_filename_out = trim(txt_filename_in(1:nchars-4)) // trim(txt_filename_out) // ".txt"
-
-end subroutine modify_txt_filename
 ! ==========================================================================

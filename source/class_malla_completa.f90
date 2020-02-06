@@ -226,7 +226,7 @@ END SUBROUTINE escribir_malla
 
 ! ================================================================================
 ! ================================================================================
-SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
+SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, label_periodicidad, iStatus)
     ! voy a recorrer m_in, sus capas y fibras, encontrando intersecciones entre fibras
     ! como resultado la malla de salida es una malla aumentada porque tiene mas nodos y mas segmentos
     ! en primera instancia la voy a sobredimensionar en memoria
@@ -235,6 +235,7 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
     TYPE(MallaCom), INTENT(IN) :: m_in
     TYPE(MallaCom), INTENT(OUT) :: m_out
     LOGICAL, INTENT(IN) :: label_intercapas
+    logical, intent(in) :: label_periodicidad
     INTEGER, INTENT(OUT) :: iStatus
     !
     INTEGER :: c1, c2 ! numeracion de capas
@@ -301,7 +302,7 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, iStatus)
                     ! recorro las fibras de la capa siguiente
                     ! o sea que si estoy en la ultima capa, no lo hago
                     IF (c1==m_in%ncaps) THEN
-!                        CYCLE ! si activo esto la ultima capa no intersecta con la primera
+                        if (.not. label_periodicidad) CYCLE ! si activo esto la ultima capa no intersecta con la primera
                         i1fibs1 = 1
                         nfibs1 = m_in%capsne(1) ! voy a chequear la ultima capa con la primera
                         allocate( fibs1(nfibs1) )

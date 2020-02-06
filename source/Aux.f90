@@ -71,6 +71,15 @@ END FUNCTION FindStringInFile
 ! ================================================================================
 
 
+!! ================================================================================
+!! ================================================================================
+!subroutine read_instruction(configfilename)
+!
+!end subroutine
+!! ================================================================================
+!! ================================================================================
+
+
 ! ================================================================================
 ! ================================================================================
 FUNCTION Upper_Case(string)
@@ -125,6 +134,26 @@ FUNCTION get_file_unit() RESULT(lu)
 
     RETURN
 END FUNCTION get_file_unit
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
+subroutine modify_txt_filename(txt_filename_in, txt_filename_out)
+    ! Agrego caracteres a un archivo txt antes de la extension ".txt"7
+    ! El nombre original del archivo viene en txt_filename_in, que se mantiene sin modificar
+    ! Los caracteres a agregar van en la variable txt_filename_out
+    ! que es donde tambien se guarda el nombre modificado del archivo
+    implicit none
+    character(len=120), intent(in) :: txt_filename_in
+    character(len=120), intent(inout) :: txt_filename_out
+    integer :: nchars
+
+    nchars = len(trim(txt_filename_in))
+    txt_filename_out = trim(txt_filename_in(1:nchars-4)) // trim(txt_filename_out) // ".txt"
+
+end subroutine modify_txt_filename
 ! ================================================================================
 ! ================================================================================
 

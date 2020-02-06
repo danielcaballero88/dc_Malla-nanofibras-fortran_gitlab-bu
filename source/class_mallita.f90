@@ -318,7 +318,7 @@ END SUBROUTINE escribir_mallita
 
 ! ================================================================================
 ! ================================================================================
-subroutine deformar_afin(masim, FF)
+subroutine deformar_afin(masim, FF, r_afin)
     ! Deforma la mallita de manera Afin: r = F r0
     ! input: FF (tensor gradiente de deformaciones 2x2)
     !
@@ -326,22 +326,22 @@ subroutine deformar_afin(masim, FF)
     ! ----------
     type(MallaSim), intent(inout) :: masim
     real(8), intent(in) :: FF(2,2) ! tensor de deformaciones
+    real(8), intent(out) :: r_afin(2,masim%nnods)
     ! ----------
     integer :: i,j,k
-    real(8) :: newr(2,masim%nnods)
     ! ----------
 
     ! ----------
-    newr = 0.d0
+    r_afin = 0.d0
     do k=1,masim%nnods
         do i=1,2
             do j=1,2
-                newr(i,k) = newr(i,k) + FF(i,j)*masim%rnods0(j,k)
+                r_afin(i,k) = r_afin(i,k) + FF(i,j)*masim%rnods0(j,k)
             end do
         end do
     end do
     ! ----------
-    masim%rnods = newr
+!    masim%rnods = r_afin
     ! ----------
 
     ! ----------
@@ -451,10 +451,15 @@ subroutine vibrar_malla(masim, nveces, drmag, r1)
     do vez=1,nveces
         call calcular_fuerzas(masim, r1, fzas_fibs, fzas_nods)
         do n=1,masim%nnods
-            fza_n = fzas_nods(:,n)
-            fza_n_mag = dsqrt(sum(fza_n*fza_n))
-            dr_n = drmag * fza_N / fza_n_mag
-            r1(:,n) = r1(:,n) + dr_n(:)
+            if (masim%tipos(n) == 1) then
+                ! nodo de frontera = nodo de Dirichlet
+                r1(:,n) = r1(:,n) ! sentencia innecesaria pero por ahora la dejo para que quede claro
+            else
+                fza_n = fzas_nods(:,n)
+                fza_n_mag = dsqrt(sum(fza_n*fza_n))
+                dr_n = drmag * fza_N / fza_n_mag
+                r1(:,n) = r1(:,n) + dr_n(:)
+            end if
         end do
     end do
 
@@ -491,7 +496,7 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     end do
 
     ! ----------
-end subroutine
+end subroutine calcular_equilibrio_vibracional
 ! ================================================================================
 ! ================================================================================
 
