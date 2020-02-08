@@ -1,0 +1,25 @@
+sistema: micron, segundo, [Fuerza] o [masa] 
+
+Quiero que [Tension] = Mpa
+
+[Tension] = MPa = [Fuerza] / micron**2
+
+    entonces: [Fuerza]  = Newton/m**2 * 1e6 * micron**2 
+                        = Newton/m**2 * 1e6 * (m 1e-6)**2 
+                        = Newton * 1e-6
+                        = microNewton 
+
+[Fuerza] = [masa] * micron / segundo**2
+
+    entonces:    [masa] = microNewton * s**2 / micron
+                        = 1e-6 N * s**2 / (1e-6 m) 
+                        = N * s**2 / m 
+                        = kg*m/s**2 * s**2 / m 
+                        = kg
+
+El sistema es: micron, segundo, kg 
+Las tensiones resultan automaticamente en MPa
+                        
+Es decir, los módulos elásticos de las fibras puedo ponerlos en MPa, las dimensiones en micrones.
+Si hago esquema temporal uso segundos.
+Si pongo constantes elásticas de las fibras tengo que usar microNewton!!!
