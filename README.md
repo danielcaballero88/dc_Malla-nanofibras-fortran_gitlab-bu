@@ -64,13 +64,28 @@ Se harán como máximo 10 pasadas buscando intersecciones y se tendrá en cuenta
 
 ### * Simplificar
 A partir de una malla de tipo "Malla completa" intersectada se calcula una malla de tipo "Malla Simple".
-Los nombres de los archivos a leer se modifican para agregar "\_i" antes de la extensión ".txt". Hay que tener cuidado al poner el nombre en ConfigurationFile.txt o en la lista de archivos.
+Los nombres de los archivos a leer se modifican para agregar "\_i" antes de la extensión ".txt". Hay que tener cuidado al poner el nombre en ConfigurationFile.txt o en la lista de archivos, ya que ahí va sin el "\_i".
 Los archivos modificados se escriben con un "\_s" previo a la extensión ".txt", por lo que quedan finalizando en "\_i\_s.txt".
+Simplificar la malla implica deshacerse de las fibras largas compuestas por concatenaciones de segmentos lineales pequeños, y conformar una malla de fibras cortas entre dos puntos de unión (intersecciones entre fibras largas).
+Además se agregan parámetros constitutivos para la tensión ingenieril de las fibras.
 
 Líneas 
 
 1. "Simplificar" 
 2. [Opcion_archivo (integer)] [Archivo (character(len=120))].
+3. [nParamCon]. Número de parámetros constitutivos 
+4. [ParamCon]. Array con parámetros constitutivos, el primer valor es un selector de ley constitutiva.
+
+#### Leyes constitutivas programadas 
+
+Según el valor de selector ( ParamCon(1) ) se toma una ley constitutiva u otra, por lo que cambian también el significado del resto de los parámetros constitutivos, así como su cantidad necesaria.
+
+1. Ley bilineal elástica. Parámetros: k1, k2.
+	+ k1 es la constante elástica en fuerza de fibras rectas a la tracción.
+	+ k2 es la constante elástica en fuerza de fibras enruladas.
+2. Ley bilineal elástica. Parámetros: Et, Eb.
+	+ Et es el módulo elástico de tensión ingenieril de fibras rectas a la tracción.
+	+ Eb es el módulo elástico de tensión ingenieril de fibras enruladas.
 
 Ejemplo: 
 
@@ -78,7 +93,15 @@ Ejemplo:
 * 4
 Simplificar 
 1	Malla_completa.txt 
+3
+2	2.9d9	2.9d6
 </pre>
+
+En este caso se tiene que la etiqueta Nro. 4 es "Simplificar".
+Se da un archivo de malla, de nombre "Malla\_completa.txt", por lo que se va a leer al archivo "Malla\_completa\_i.txt".
+El output va a ser un archivo de malla completa de nombre "Malla\_completa\_i\_s.txt".
+Además se dan 3 parámetros constitutivos en la línea siguiente, de los cuales el primero indica que se usa la ley constitutiva número 2, con los dos parámetros necesarios siguiendo.
+
 
 ### * Equilibrar 
 A partir de una malla simplificada se calcula el equilibrio **elástico** dada una deformación (tensor F macroscópico, que se aplica a los bordes).
@@ -107,3 +130,8 @@ Equilibrar
 1
 1.1d0    0.d0    0.d0    1.d0
 </pre>
+
+En este caso, la instrucción de la etiqueta número 1 es "Equilibrar".
+Se lee una malla simple en el archivo "Malla\_completa\_i\_s.txt" ("\_s" indica que no es malla completa sino que se ha simplificado en algúna instrucción previa).
+Luego se indica que para equilibrar se van a llevar a cabo 4 pasos de vibración. Cada paso tiene 10 iteraciones y las magnitudes de desplazamientos en cada paso son 10, 1, 0.1, 0.01.
+Luego, el 1 indica que el tensor de deformaciones se da en la linea siguiente, el cual se pone en orden: F11, F21, F12, F22.

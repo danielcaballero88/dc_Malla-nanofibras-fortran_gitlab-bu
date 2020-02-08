@@ -10,7 +10,11 @@ MODULE class_malla_completa
 
     TYPE MallaCom
         ! diemensiones generales
-        REAL(8) :: sidelen, diamed
+        REAL(8) :: sidelen
+        REAL(8) :: diamed
+        real(8) :: volfrac
+        real(8) :: lenseg
+        real(8) :: themax
         ! nodos
         INTEGER :: nnods
         INTEGER, ALLOCATABLE :: tipos(:)
@@ -73,15 +77,19 @@ SUBROUTINE leer_malla(malla, nomarch)
     OPEN(UNIT=fid, FILE=TRIM(nomarch), STATUS="OLD")
     ! ----------
     iStatus = FindStringInFile("*parametros", fid, .TRUE.)
-    READ(fid,*) malla%sidelen
-    READ(fid,*) malla%diamed
+    READ(fid,*) malla%sidelen ! viene em micrones
+    READ(fid,*) malla%diamed ! viene em micrones
+    READ(fid,*) malla%volfrac
+    READ(fid,*) malla%lenseg ! viene en micrones
+    READ(fid,*) malla%themax ! lo leo en grados
+    malla%themax = malla%themax * PI / 180.d0 ! lo paso a radianes
     ! ----------
     iStatus = FindStringInFile("*coordenadas", fid, .TRUE.)
     READ(fid,*) malla%nnods
     ALLOCATE( malla%rnods(2,malla%nnods) )
     ALLOCATE( malla%tipos(malla%nnods) )
     DO i=1,malla%nnods
-        READ(fid,*) j, tipo, r
+        READ(fid,*) j, tipo, r ! los leo en micrones
         malla%rnods(:,i) = r
         malla%tipos(i) = tipo
     END DO
@@ -184,6 +192,9 @@ SUBROUTINE escribir_malla(malla, nomarch)
     WRITE(fid,'(A11)') "*Parametros"
     WRITE(fid,'(E20.8E2)') malla%sidelen
     WRITE(fid,'(E20.8E2)') malla%diamed
+    WRITE(fid,'(E20.8E2)') malla%volfrac
+    WRITE(fid,'(E20.8E2)') malla%lenseg
+    WRITE(fid,'(E20.8E2)') malla%themax * 180.d0 / PI ! lo guardo en grados
     ! ----------
     ! Nodos
     WRITE(fid,'(A12)') "*Coordenadas"
@@ -392,6 +403,9 @@ SUBROUTINE intersectar_fibras_3(m_in, m_out, label_intercapas, label_periodicida
     ! dimensiones generales
     m_out%sidelen = m_in%sidelen
     m_out%diamed = m_in%diamed
+    m_out%volfrac = m_in%volfrac
+    m_out%lenseg = m_in%lenseg
+    m_out%themax = m_in%themax
     ! ----------
     ! nodos
     m_out%nnods = m_in%nnods + nins ! cada interseccion implica un nuevo nodo

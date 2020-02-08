@@ -31,6 +31,8 @@ program hello
     integer :: j_malla
     ! ----------
     ! variables para instruccion "Simplificar"
+    integer :: numparam
+    real(8), allocatable :: param(:)
     ! ----------
     ! variables para instruccion "Equilibrar"
     integer :: opcion_F
@@ -119,10 +121,13 @@ program hello
         case ("Simplificar")
             ! Leo los parametros de configuracion
             read(fid_cf,*) opcion_archivo, nombre_archivo
+            read(fid_cf,*) numparam
+            allocate( param(numparam) )
+            read(fid_cf,*) param
             ! Comienzo a simplificar
             if (opcion_archivo==1) then
                 ! Caso de una sola malla
-                call main_simplificar(nombre_archivo)
+                call main_simplificar(nombre_archivo, numparam, param)
             elseif (opcion_archivo==2) then
                 ! Caso de una lista de mallas en un archivo
                 fid_lista_mallas = get_file_unit()
@@ -133,7 +138,7 @@ program hello
                     read(fid_lista_mallas,*) nombre_malla
                     write(*,*) "Simplificando malla:"
                     write(*,*) nombre_malla
-                    call main_simplificar(nombre_malla)
+                    call main_simplificar(nombre_malla, numparam, param)
                 end do
                 ! Cierro el archivo de la lista de mallas
                 close(unit=fid_lista_mallas)

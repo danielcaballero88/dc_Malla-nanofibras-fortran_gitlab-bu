@@ -58,11 +58,13 @@ end subroutine main_intersectar
 ! ==========================================================================
 
 ! ==========================================================================
-subroutine main_simplificar(filename_malla_in)
+subroutine main_simplificar(filename_malla_in, nparamcon, paramcon)
     use class_malla_completa
     use class_mallita
     implicit none
     CHARACTER(LEN=120), intent(in) :: filename_malla_in
+    integer, intent(in) :: nparamcon
+    real(8), intent(in) :: paramcon(nparamcon)
     character(len=120) :: filename_malla_in2, filename_malla_out
     type(MallaCom) :: mc
     type(MallaSim) :: ms
@@ -77,7 +79,7 @@ subroutine main_simplificar(filename_malla_in)
 
     write(*,*) "Leer malla intersectada y generar malla simplificada:"
     call leer_malla(mc, filename_malla_in2)
-    call Desde_MallaCom(mc, ms, 2, [10.d0, .1d0])
+    call Desde_MallaCom(mc, ms, nparamcon, paramcon)
 
     write(*,*) "Escribiendo mallita"
     filename_malla_out = "_s"
@@ -104,7 +106,7 @@ subroutine main_equilibrar(filename_malla_in, Fmacro, num_pasos, lista_veces, li
     ! ----------
     character(len=120) :: filename_malla_in2, filename_malla_out, aux_string
     type(MallaSim) :: ms
-    real(8), allocatable :: r1(:,:)
+!    real(8), allocatable :: r1(:,:)
     integer :: n, iStat1
     ! ----------
 
@@ -118,14 +120,13 @@ subroutine main_equilibrar(filename_malla_in, Fmacro, num_pasos, lista_veces, li
     write(*,*) "Calculando equilibrio"
     call leer_mallita(ms, filename_malla_in2)
     n = ms%nnods
-    allocate( r1(2,n) )
+!    allocate( r1(2,n) )
 !    Fmacro(1,:) = [1.2d0, 0.d0]
 !    Fmacro(2,:) = [0.0d0, 1.d0]
-    call deformar_afin(ms, Fmacro, r1)
-    call calcular_equilibrio_vibracional(ms, num_pasos, lista_veces, lista_drmags, r1)
+    call calcular_equilibrio_vibracional(ms, num_pasos, lista_veces, lista_drmags, Fmacro)
 !        call calcular_equilibrio(ms,r1,10000,1.d-1,iStat1)
 
-    ms%rnods = r1
+!    ms%rnods = r1
     filename_malla_out = "_e"
     call modify_txt_filename(filename_malla_in2, filename_malla_out)
     if (present(str_num_output_opt)) then
