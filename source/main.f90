@@ -1,5 +1,5 @@
 
-program hello
+program Malla_Nanofibras_Fortran
     USE class_malla_completa
     use class_mallita
     USE Aux
@@ -35,16 +35,22 @@ program hello
     real(8), allocatable :: param(:)
     ! ----------
     ! variables para instruccion "Equilibrar"
-    integer :: opcion_F
-    character(len=120) :: archivo_F
-    integer :: fid_F
+    integer :: opcion_Fmacro
+    character(len=120) :: archivo_Fmacro
+    integer :: fid_Fmacro
     real(8) :: Fmacro(2,2)
     integer :: num_pasos_vibracion
     integer, allocatable :: vec_veces(:)
     real(8), allocatable :: vec_drmags(:)
-    integer :: num_F
+    integer :: num_Fmacro
+    real(8), allocatable :: vec_Fmacro(:,:,:)
     integer :: j_F
     character(len=8) :: str_j_F
+    ! variables para instruccion "Traccion"
+    real(8) :: delta_t, dot_F11, dot_F22, F11_fin
+    CHARACTER(LEN=120) :: filename_curvacon
+    integer :: opcion_guardar
+    real(8) :: dF_guardar
     ! ----------
     CHARACTER(LEN=120) :: filename, mallaname
     integer :: i,j,k,n,m
@@ -69,19 +75,26 @@ program hello
     read(fid_cf,*) num_instruc
     allocate( lista_instruc(num_instruc) )
     read(fid_cf,*) lista_instruc
+    ! Ya que estamos tambien busco y leo los parametros constitutivos
+    iStat = FindStringInFile("* Parametros Constitutivos", fid_cf, .false.)
+    if (iStat==0) then
+        read(fid_cf,*) numparam
+        allocate( param(numparam) )
+        read(fid_cf,*) param
+    end if
     CLOSE(unit=fid_cf)
     ! --------------------------------------------------------------------------
-    ! recorro las etiquetas de las instrucciones a realizar
+    ! Recorro las etiquetas de las instrucciones a realizar
     do j_instr=1,num_instruc
         ! --------------------------------------------------------------------------
-        ! busco cada etiqueta en configfile y leo la string de instruccion (es el identificador: Intersectar, Simplificar o Equilibrar)
+        ! Busco cada etiqueta en configfile y leo la string de instruccion (es el identificador: Intersectar, Simplificar o Equilibrar)
         i_etiqueta = lista_instruc(j_instr)
         WRITE(str_etiqueta,'(A2,I1)') "* ", i_etiqueta
         OPEN(unit=fid_cf, file=trim(configfile), status="old")
         iStat = FindStringInFile(str_etiqueta, fid_cf, .true.)
         read(fid_cf,*) str_instruccion
         ! --------------------------------------------------------------------------
-        ! luego, segun la instruccion me fijo que hay que hacer
+        ! Luego, segun la instruccion me fijo que hay que hacer
         select case (trim(str_instruccion))
         ! --------------------------------------------------------------------------
         ! INTERSECTAR
@@ -121,9 +134,6 @@ program hello
         case ("Simplificar")
             ! Leo los parametros de configuracion
             read(fid_cf,*) opcion_archivo, nombre_archivo
-            read(fid_cf,*) numparam
-            allocate( param(numparam) )
-            read(fid_cf,*) param
             ! Comienzo a simplificar
             if (opcion_archivo==1) then
                 ! Caso de una sola malla
@@ -153,36 +163,127 @@ program hello
         ! --------------------------------------------------------------------------
         ! EQUILIBRAR
         case ("Equilibrar")
+            ! Leo parametros
             read(fid_cf,*) opcion_archivo, nombre_archivo
             read(fid_cf,*) num_pasos_vibracion
+            if (allocated(vec_veces)) deallocate(vec_veces)
+            if (allocated(vec_drmags)) deallocate(vec_drmags)
             allocate( vec_veces(num_pasos_vibracion) )
             allocate( vec_drmags(num_pasos_vibracion) )
             read(fid_cf,*) vec_veces
             read(fid_cf,*) vec_drmags
-            read(fid_cf,*) opcion_F
-            if (opcion_F==1) then
-                ! caso de un solo F dado en configfile
+            read(fid_cf,*) opcion_Fmacro
+            ! Armo array de deformaciones
+            if (opcion_Fmacro==1) then
+                ! Caso de un solo Fmacro
                 read(fid_cf,*) Fmacro
-                call main_equilibrar(nombre_archivo, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags)
-            elseif (opcion_F==2) then
-                ! caso de un archivo dando muchos F
-                read(fid_cf,*) archivo_F
-                fid_F = get_file_unit()
-                open(unit=fid_F, file=trim(archivo_F), status="old")
-                read(fid_F,*) num_F
-                do j_F=1,num_F
-                    read(fid_F,*) Fmacro
-                    write(str_j_F, "(A1, I7.7)") "_", j_F ! 4.4 indica que el campo es de 4 y se usan como minimo 4, entonces imprime los ceros
-                    call main_equilibrar(nombre_archivo, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                allocate( vec_Fmacro(2,2,1) )
+                vec_Fmacro(:,:,1) = Fmacro
+            elseif (opcion_Fmacro==2) then
+                ! Caso de un archivo con una lista de deformaciones
+                read(fid_cf,*) archivo_Fmacro
+                fid_Fmacro = get_file_unit()
+                open(unit=fid_Fmacro, file=trim(archivo_Fmacro), status="old")
+                read(fid_Fmacro,*) num_Fmacro
+                allocate( vec_Fmacro(2,2,num_Fmacro) )
+                do j_F=1,num_Fmacro
+                    read(fid_Fmacro,*) vec_Fmacro(:,:,j_F)
                 end do
             else
-                write(*,*) "Error en opcion_F, deberia ser 1 o 2, y es: ", opcion_F
+                write(*,*) "Error en opcion_Fmacro, deberia ser 1 o 2, y es: ", opcion_Fmacro
                 write(*,*) "En etiqueta: ", str_etiqueta
                 write(*,*) "En instruccion: ", str_instruccion
                 stop
             end if
-        close(unit=fid_F)
+            ! Ahora resuelvo el equilibrio para las deformaciones que tengo
+            if (opcion_archivo==1) then
+                ! Caso de una sola malla
+                ! Recorro los Fmacro de la lista para hacer todos los equilibrios
+                do j_F=1,num_Fmacro
+                    Fmacro = vec_Fmacro(:,:,j_F)
+                    write(str_j_F, "(A1, I7.7)") "_", j_F ! 7.7 indica que el campo es de 7 y se usan como minimo 7, entonces imprime los ceros
+                    call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                end do
+            elseif (opcion_archivo==2) then
+                ! Caso de una lista de mallas en un archivo
+                fid_lista_mallas = get_file_unit()
+                open(unit=fid_lista_mallas, file=trim(nombre_archivo), status="old")
+                read(fid_lista_mallas,*) nmallas
+                ! Recorro las mallas de la lista
+                do j_malla=1,nmallas
+                    read(fid_lista_mallas,*) nombre_malla
+                    write(*,*) "Equilibrando malla:"
+                    write(*,*) nombre_malla
+                    ! Recorro los Fmacro de la lista para hacer todos los equilibrios
+                    do j_F=1,num_Fmacro
+                        Fmacro = vec_Fmacro(:,:,j_F)
+                        write(str_j_F, "(A1, I7.7)") "_", j_F ! 7.7 indica que el campo es de 7 y se usan como minimo 7, entonces imprime los ceros
+                        call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                    end do
+                end do
+                ! Cierro el archivo de la lista de mallas
+                close(unit=fid_lista_mallas)
+            else
+                ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
+                write(*,*) "Error, opcion_archivo debe ser 1 o 2, y es: ", opcion_archivo
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En Instruccion: ", str_instruccion
+                stop
+            end if
+!            if (opcion_Fmacro==1) then
+!                ! caso de un solo F dado en configfile
+!                read(fid_cf,*) Fmacro
+!                call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags)
+!            elseif (opcion_Fmacro==2) then
+!                ! caso de un archivo dando muchos F
+!                read(fid_cf,*) archivo_Fmacro
+!                fid_Fmacro = get_file_unit()
+!                open(unit=fid_Fmacro, file=trim(archivo_Fmacro), status="old")
+!                read(fid_Fmacro,*) num_Fmacro
+!                do j_F=1,num_Fmacro
+!                    read(fid_Fmacro,*) Fmacro
+!                    write(str_j_F, "(A1, I7.7)") "_", j_F ! 4.4 indica que el campo es de 4 y se usan como minimo 4, entonces imprime los ceros
+!                    call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+!                end do
+!            else
+!                write(*,*) "Error en opcion_Fmacro, deberia ser 1 o 2, y es: ", opcion_Fmacro
+!                write(*,*) "En etiqueta: ", str_etiqueta
+!                write(*,*) "En instruccion: ", str_instruccion
+!                stop
+!            end if
+            ! Cierro archivo de deformaciones
+            close(unit=fid_Fmacro)
         ! FIN EQUILIBRAR
+        ! --------------------------------------------------------------------------
+        ! TRACCION
+        case ("Traccion")
+            ! Leo parametros
+            read(fid_cf,*) opcion_archivo, nombre_archivo
+            read(fid_cf,*) num_pasos_vibracion
+            if (allocated(vec_veces)) deallocate(vec_veces)
+            if (allocated(vec_drmags)) deallocate(vec_drmags)
+            allocate( vec_veces(num_pasos_vibracion) )
+            allocate( vec_drmags(num_pasos_vibracion) )
+            read(fid_cf,*) vec_veces
+            read(fid_cf,*) vec_drmags
+            read(fid_cf,*) delta_t, dot_F11, dot_F22, F11_fin
+            read(fid_cf,*) filename_curvacon
+            read(fid_cf,*) opcion_guardar, dF_guardar
+            !
+            if (opcion_archivo==1) then
+                ! Caso de una sola malla
+                ! Recorro los Fmacro de la lista para hacer todos los equilibrios
+                call main_traccion(nombre_archivo, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
+!            elseif (opcion_archivo==2) then
+!                stop
+            else
+                ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
+                write(*,*) "Error, opcion_archivo debe ser 1, y es: ", opcion_archivo
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En Instruccion: ", str_instruccion
+                stop
+            end if
+        ! FIN TRACCION
         ! --------------------------------------------------------------------------
         case default
             write(*,*) "Instruccion desconocida: ", str_instruccion
@@ -218,7 +319,7 @@ program hello
 !    end select
 !    ! ==========
 
-end program
+end program Malla_Nanofibras_Fortran
 ! ==========================================================================
 ! ==========================================================================
 ! ==========================================================================

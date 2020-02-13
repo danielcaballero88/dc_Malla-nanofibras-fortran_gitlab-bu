@@ -12,6 +12,11 @@ El segundo caso es luego de subdividir las fibras largas en las intersecciones y
 DETALLE: La numeración de fibras y nodos en los archivos es de base 0, porque el programa original estaba codificado en Python.
 La numeración internamente en este programa de Fortran90 es de base 1, así que hay que tener cuidado con eso.
 
+# Unidades 
+
+Se trabaja en un sistema de unidades de: micron, kg, seg.
+En este sistema, las fuerzas quedan en microNewton, y las tensiones en MPa.
+
 # Archivo de configuración  
 ##(ConfigurationFile.txt) 
 
@@ -31,11 +36,27 @@ EJemplo:
 <pre>
 * Numero de acciones 
 3
-1 3 4 
+1	3	4 
 </pre>
 
 En este caso se van a realizar 3 acciones, respectivamente en las etiquetas 1 3 y 4. Puede estar desordenado e incluso haber repeticiones, aunque no se recomienda.
 NOTA: claramente las demás etiquetas necesitan tener numeración.
+
+### * Parametros Constitutivos 
+
+Acá se dan los parámetros constitutivos. No hace falta que esté esto si se van a calcular intersecciones o simplificar una malla. Pero para calcular el equilibrio bajo deformación, si esto no está, va a saltar algún error con seguridad.
+
+Líneas: 
+1. [nParamCon]. Número de parámetros constitutivos 
+2. [ParamCon]. Array con parámetros constitutivos, el primer valor es un selector de ley constitutiva.
+
+Ejemplo: 
+
+<pre>
+* Parametros Constitutivos 
+5
+3   2.9d3   2.9d0   0.1d0   1.05
+</pre>
 
 ### * Intersectar
 Se calculan las intersecciones de la malla y se agregan los nodos correspondientes, partiendo los segmentos intersectados en dos y rearreglando la conectividad de las fibras para que la malla siga teniendo sentido.
@@ -134,4 +155,31 @@ Equilibrar
 En este caso, la instrucción de la etiqueta número 1 es "Equilibrar".
 Se lee una malla simple en el archivo "Malla\_completa\_i\_s.txt" ("\_s" indica que no es malla completa sino que se ha simplificado en algúna instrucción previa).
 Luego se indica que para equilibrar se van a llevar a cabo 4 pasos de vibración. Cada paso tiene 10 iteraciones y las magnitudes de desplazamientos en cada paso son 10, 1, 0.1, 0.01.
-Luego, el 1 indica que el tensor de deformaciones se da en la linea siguiente, el cual se pone en orden: F11, F21, F12, F22.
+Luego, el 1 indica que el tensor de deformaciones se da en la linea siguiente, el cual se pone en orden típico de Fortran: F11, F21, F12, F22.
+
+
+### * Traccion 
+
+Esta instruccion es para llevar a cabo una simulacion de un ensayo de traccion. Se realiza un esquema explícito temporal. En cada paso de tiempo se calcula el equilibrio de la malla y la evolución de los parámetros que puedan variar con el tiempo (plasticidad, rotura de fibras, etc.).
+
+Líneas:
+
+1. Traccion 
+2. [Opcion_archivo (integer)] [Archivo (character(len=120))]. Si Opcion_archivo = 3, en este caso, se empieza desde una malla previamente deformada, con un Fmacro dado en la malla.
+3. [npasos]. Número de pasos de vibración (para cada paso temporal se calcula un equilibrio mediante método vibracional). 
+4. [vec_veces]. Número de veces que se vibra en cada paso.
+5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
+6. [dT] [dotF11] [dotF22] [F11fin]. Paso temporal, tasa de deformación axial, tasa de deformación transversal y deformación axial final.
+7. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
+
+Ejemplo: 
+
+<pre>
+* 1
+Traccion 
+1	Malla_completa.txt 
+4
+10    10    10    10
+10.d0    1.d0    0.1d0    0.01d0
+0.1d0    0.01d0    -0.01d0    1.2d0
+</pre>

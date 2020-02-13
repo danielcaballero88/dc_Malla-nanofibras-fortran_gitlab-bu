@@ -47,7 +47,7 @@ FUNCTION FindStringInFile(Str, ioUnit, Mandatory) RESULT (iError)
     ! ================================================================================
     REWIND(ioUnit)
     Search_Loop: DO WHILE (segui)
-        READ(ioUnit,'(1A120)',IOSTAT=iError) DummyString
+        READ(ioUnit,'(1A120)',IOSTAT=iError) DummyString ! iError es 0 si lee con exito, >0 si hay error y <0 si es end of file.
         DummyString = Upper_Case(DummyString)   ! line added by NB
         !       if (iError==59) backspace(ioUnit)
         IF (iError.lt.0) THEN
@@ -284,8 +284,8 @@ SUBROUTINE intersectar_segmentos(rs1n1, rs1n2, rs2n1, rs2n2, r_in, iStatus)
             th2rel = th2rel - pi2
         END IF
     END DO
-    ! me fijo que en el sistema intrinsieco al segmento 1, el segmento 2 no sea vertical
-    m2relinf = ( (iguales(th2rel,pi05,pi*1.d-5)) .OR. (iguales(th2rel,pi15,pi*1.d-5)) )
+    ! me fijo si en el sistema intrinsieco al segmento 1, el segmento 2 resulta vertical
+    m2relinf = ( (iguales(th2rel,pi05,pi*1.d-5)) .OR. (iguales(th2rel,pi15,pi*1.d-5)) ) ! guardo esa informacion
     ! coseno y seno de th1
     cos1 = DCOS(th1)
     sin1 = DSIN(th1)
@@ -301,9 +301,9 @@ SUBROUTINE intersectar_segmentos(rs1n1, rs1n2, rs2n1, rs2n2, r_in, iStatus)
     END IF
     ! ----------
     ! calculo a que distancia sobre el eje del segmento 1 se produce la posible interseccion
-    IF (m2relinf) THEN
+    IF (m2relinf) THEN ! si el segmento 2 es perpendicular al 1
         s_in = s21(1)
-    ELSE
+    ELSE ! si es oblicuo
         m2rel = DTAN(th2rel)
         s_in = s21(1) - s21(2)/m2rel
     END IF

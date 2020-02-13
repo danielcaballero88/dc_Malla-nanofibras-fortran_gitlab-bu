@@ -29,6 +29,8 @@ MODULE class_mallita
         INTEGER, ALLOCATABLE :: fibs(:,:)
         REAL(8), ALLOCATABLE :: letes0(:)
         REAL(8), ALLOCATABLE :: lamsr(:)
+        real(8), allocatable :: lamps(:)
+        logical, allocatable :: brokens(:)
         REAL(8), ALLOCATABLE :: diams(:)
         ! parametros constitutivos
         INTEGER :: nparam
@@ -119,6 +121,8 @@ SUBROUTINE Desde_MallaCom(macom, masim, nparcon, parcon)
     allocate( masim%fibs(2,nfibs) )
     allocate( masim%letes0(nfibs) )
     allocate( masim%lamsr(nfibs) )
+    allocate( masim%lamps(nfibs) )
+    allocate( masim%brokens(nfibs) )
     allocate( masim%diams(nfibs) )
 !    allocate( masim%param(10,nfibs) )
     ! ----------
@@ -190,6 +194,9 @@ SUBROUTINE Desde_MallaCom(macom, masim, nparcon, parcon)
         nfibs = nfibs + 1 + nins_f
         nnods = nnods + 2 + nins_f
     end do
+    ! tambien agrego informacion sobre deformacion plastica y rotura de fibras
+    masim%lamps = 1.d0 ! sin plasticidad
+    masim%brokens = .false. ! todas sanas
     ! ----------
     ! ya tengo los nodos (tipos y coordenadas), ahora hago las masks
     masim%mf = masim%tipos == 1
@@ -213,17 +220,20 @@ END SUBROUTINE Desde_MallaCom
 
 ! ================================================================================
 ! ================================================================================
-SUBROUTINE leer_mallita(masim, nomarch)
+SUBROUTINE leer_mallita(masim, nomarch, numparamcon, paramcon)
     IMPLICIT NONE
     CHARACTER(LEN=120), INTENT(IN) :: nomarch
     TYPE(MallaSim), INTENT(OUT) :: masim
+    integer, intent(in) :: numparamcon
+    real(8), intent(in) :: paramcon(numparamcon)
     !
     INTEGER :: fid
     integer :: iStatus
     INTEGER :: i,j,k
     integer :: tipo
     real(8) :: r0(2), r(2)
-    real(8) :: diam, lete0, lamr
+    real(8) :: diam, lete0, lamr, lamp
+    logical :: broken
     integer :: n0, n1
     CHARACTER(LEN=120) :: formato
 
@@ -236,9 +246,22 @@ SUBROUTINE leer_mallita(masim, nomarch)
     READ(fid,*) masim%sidelen
     READ(fid,*) masim%diamed
     read(fid,*) masim%ncapas
-    READ(fid,*) masim%nparam
+    if (.false.) then ! Codigo viejo que estoy reemplazando
+        READ(fid,*) masim%nparam
+        allocate( masim%param(masim%nparam) )
+        read(fid,*) masim%param
+    end if
+    masim%nparam = numparamcon
     allocate( masim%param(masim%nparam) )
-    read(fid,*) masim%param
+    masim%param = paramcon
+    ! ----------
+    ! Deformacion (puede no estar)
+    iStatus = FindStringInFile("*deformacion", fid, .false.)
+    if (iStatus == 0) then
+        masim%status_deformed = .true.
+        read(fid,*) masim%Fmacro
+        read(fid,*) masim%Tmacro
+    end if
     ! ----------
     ! Nodos
     iStatus = FindStringInFile("*coordenadas", fid, .TRUE.)
@@ -260,11 +283,15 @@ SUBROUTINE leer_mallita(masim, nomarch)
     allocate( masim%diams(masim%nfibs) )
     allocate( masim%letes0(masim%nfibs) )
     allocate( masim%lamsr(masim%nfibs) )
+    allocate( masim%lamps(masim%nfibs) )
+    allocate( masim%brokens(masim%nfibs) )
     DO i=1,masim%nfibs
-        READ(fid,*) j, diam, lete0, lamr, n0, n1
+        READ(fid,*) j, diam, lete0, lamr, lamp, broken, n0, n1
         masim%diams(i) = diam
         masim%letes0(i) = lete0
         masim%lamsr(i) = lamr
+        masim%lamps(i) = lamp
+        masim%brokens(i) = broken
         masim%fibs(1,i) = n0+1 !+1 porque vengo de python que tiene base 0
         masim%fibs(2,i) = n1+1
     END DO
@@ -317,11 +344,11 @@ SUBROUTINE escribir_mallita(masim, nomarch)
         WRITE(fid, '(I12,I2,4E20.8E4)') i-1, masim%tipos(i), masim%rnods0(:,i), masim%rnods(:,i)
     END DO
     ! ----------
-    ! Segmentos
+    ! Fibras
     WRITE(fid,'(A7)') "*Fibras"
     WRITE(fid, '(I12)') masim%nfibs
     DO i=1,masim%nfibs
-        WRITE(fid,'(I12, 3E20.8E4, 2I12)') i-1, masim%diams(i), masim%letes0(i), masim%lamsr(i), masim%fibs(:,i) - 1
+        WRITE(fid,'(I12, 4E20.8E4, L20 ,2I12)') i-1, masim%diams(i), masim%letes0(i), masim%lamsr(i), masim%lamps(i), masim%brokens(i), masim%fibs(:,i) - 1
     END DO
     ! ----------
     CLOSE(fid)
@@ -336,7 +363,7 @@ END SUBROUTINE escribir_mallita
 
 ! ================================================================================
 ! ================================================================================
-subroutine deformar_afin(masim, FF, r_afin)
+subroutine deformar_afin(masim, FF, r1, axis)
     ! Deforma la mallita de manera Afin: r = F r0
     ! input: FF (tensor gradiente de deformaciones 2x2)
     !
@@ -344,26 +371,95 @@ subroutine deformar_afin(masim, FF, r_afin)
     ! ----------
     type(MallaSim), intent(inout) :: masim
     real(8), intent(in) :: FF(2,2) ! tensor de deformaciones
-    real(8), intent(out) :: r_afin(2,masim%nnods)
+    real(8), intent(inout) :: r1(2,masim%nnods)
+    integer, optional, intent(in) :: axis ! eje que se deforma afin: 0= los dos, 1= x, 2=y
+    ! ----------
+    integer :: i,j,k
+    integer :: axisL
+    ! ----------
+
+    ! Chequeo si se da eje
+    axisL = 0
+    if (present(axis)) axisL=axis
+
+
+    ! ----------
+    if (axisL==0) then
+        ! Deformo de manera afin ambos ejes
+        do k=1,masim%nnods
+            r1(:,k) = 0.d0 ! lo hago cero antes de empezar la sumatoria
+            do i=1,2
+                do j=1,2
+                    r1(i,k) = r1(i,k) + FF(i,j)*masim%rnods0(j,k)
+                end do
+            end do
+        end do
+    else if (axisL==1) then
+        ! Solamente deformo de manera afin en x (y queda igual)
+        do k=1,masim%nnods
+            i=1
+            r1(i,k) = 0.d0
+            do j=1,2
+                r1(i,k) = r1(i,k) + FF(i,j)*masim%rnods0(j,k)
+            end do
+        end do
+    else if (axisL==2) then
+        ! Solamente deformo de manera afin en y (x queda igual)
+        do k=1,masim%nnods
+            i=2
+            r1(i,k) = 0.d0
+            do j=1,2
+                r1(i,k) = r1(i,k) + FF(i,j)*masim%rnods0(j,k)
+            end do
+        end do
+    else
+        print *, "Mal valor de axisL"
+        stop
+    end if
+    ! ----------
+!    masim%rnods = r1
+    ! ----------
+
+    ! ----------
+end subroutine deformar_afin
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
+subroutine deformar_afin_frontera(masim, FF, r1)
+    ! Toma un array de coordenadas r1
+    ! Y a los nodos de la frontera le aplica la deformacion afin
+    ! Al resto los deja como estaban
+    ! input: FF (tensor gradiente de deformaciones 2x2)
+    !
+    implicit none
+    ! ----------
+    type(MallaSim), intent(inout) :: masim
+    real(8), intent(in) :: FF(2,2) ! tensor de deformaciones
+    real(8), intent(inout) :: r1(2,masim%nnods)
     ! ----------
     integer :: i,j,k
     ! ----------
 
     ! ----------
-    r_afin = 0.d0
     do k=1,masim%nnods
-        do i=1,2
-            do j=1,2
-                r_afin(i,k) = r_afin(i,k) + FF(i,j)*masim%rnods0(j,k)
+        if (masim%tipos(k)==1) then
+            r1(:,k) = 0.d0
+            do i=1,2
+                do j=1,2
+                    r1(i,k) = r1(i,k) + FF(i,j)*masim%rnods0(j,k)
+                end do
             end do
-        end do
+        end if
     end do
     ! ----------
-!    masim%rnods = r_afin
+!    masim%rnods = r1
     ! ----------
 
     ! ----------
-end subroutine deformar_afin
+end subroutine deformar_afin_frontera
 ! ================================================================================
 ! ================================================================================
 
@@ -379,15 +475,34 @@ subroutine calcular_tension_fibra(masim, f, dr_f, tension, fuerzav)
     type(MallaSim), intent(in) :: masim
     integer, intent(in) :: f
     real(8), intent(in) :: dr_f(2)
-    real(8), intent(out) :: tension, fuerzav(2)
+    real(8), intent(out) :: tension ! tension ingenieril de la fibra (escalar, >0 elongacion, <0 compresion)
+    real(8), intent(out) :: fuerzav(2) ! fuerza de la fibra, vector desde nodo inicial hacia nodo final
     ! ----------
     integer :: selector
     integer :: last
     ! ---
-    real(8) :: k1, k2, Et, Eb
-    real(8) :: diam, lete0, lamr, area
-    real(8) :: lete, lam
-    real(8) :: fuerza, fuerzar, tensionr
+    real(8) :: k1 ! Constante elastica (en fuerza) de fibra recta a la traccion
+    real(8) :: k2 ! Constante elastica (en fuerza) de fibra enrulada
+    real(8) :: Et ! Modulo elastico de fibra recta a la traccion
+    real(8) :: Eb_Et ! Eb/Et
+    real(8) :: Eb ! Modulo elastico de fibra enrulada
+    real(8) :: Ep_Et ! Ep/Et
+    real(8) :: Ep ! Modulo elastico para simular plasticidad
+    real(8) :: lamp0_lamr ! lamp0/lamr
+    real(8) :: lamp0 ! lamp0 = valor de lam al cual empezaria la plasticidad
+    real(8) :: diam ! diametro inicial de la fibra
+    real(8) :: lete0 ! longitud extremo-extremo inicial de la fibra
+    real(8) :: lamr ! valor de reclutamiento de la fibra
+    real(8) :: lamp
+    real(8) :: lamrp ! valor de reclutamiento aumentado por la plasticidad
+    logical :: broken
+    real(8) :: area ! area inicial de la fibra (seccion transversal)
+    real(8) :: lete ! longitud extremo-extremo actual
+    real(8) :: lam ! elongacion extremo-extremo = lete/lete0
+    real(8) :: fuerza ! fuerza actual (modulo) de la fibra
+    real(8) :: fuerzar ! fuerza de la fibra para la cual se recluta
+    real(8) :: tensionr ! tension de la fibra para la cual se recluta
+    real(8) :: tensiony ! tension de la fibra para la cual plastifica
     ! ----------
 
     ! ----------
@@ -415,9 +530,11 @@ subroutine calcular_tension_fibra(masim, f, dr_f, tension, fuerzav)
         fuerzav = fuerza * dr_f / lete
     case (2) ! se dan Et y Eb para calcular la tension ingenieril
         Et = masim%param(last+1)
-        Eb = masim%param(last+2)
+        Eb_Et = masim%param(last+2)
+        Eb = Eb_Et*Et
         lamr = masim%lamsr(f)
         diam = masim%diams(f)
+        area = pi * diam * diam / 4.d0
         lete0 = masim%letes0(f)
         lete = dsqrt(sum(dr_f*dr_f))
         lam = lete / lete0
@@ -429,6 +546,57 @@ subroutine calcular_tension_fibra(masim, f, dr_f, tension, fuerzav)
         end if
         fuerza = tension * area
         fuerzav = fuerza * dr_f / lete
+    case (3) ! doy Et, Eb y Ep, es una ley trilineal para simular a groso modo una respuesta con deformacion plastica
+        Et = masim%param(last+1)
+        Eb_Et = masim%param(last+2)
+        Eb = Eb_Et*Et
+        Ep_Et = masim%param(last+3)
+        Ep = Ep_Et*Et
+        lamp0_lamr = masim%param(last+4)
+        lamr = masim%lamsr(f)
+        lamp0 = lamp0_lamr*lamr
+        diam = masim%diams(f)
+        area = pi * diam * diam / 4.d0
+        lete0 = masim%letes0(f)
+        lete = dsqrt(sum(dr_f*dr_f))
+        lam = lete / lete0
+        if ( lam <= lamr ) then
+            tension = Eb*(lam - 1.0d0) * diam
+        else if (lam <= lamp0 ) then
+            tensionr = Eb * (lamr - 1.0d0)
+            tension = tensionr + Et * (lam/lamr - 1.0d0)
+        else ! simulando plasticidad en la respuesta
+            tensionr = Eb * (lamr - 1.0d0)
+            tensiony = tensionr + Et * (lamp0/lamr - 1.0d0)
+            tension = tensionr + tensiony + Ep*(lam/lamp0 - 1.0d0)
+        end if
+        fuerza = tension * area
+        fuerzav = fuerza * dr_f / lete
+    case (4) ! Ecuacion con plasticidad
+        Et = masim%param(last+1)
+        Eb_Et = masim%param(last+2)
+        Eb = Eb_Et*Et
+        lamr = masim%lamsr(f)
+        lamp = masim%lamps(f)
+        lamrp = lamr*lamp
+        broken = masim%brokens(f)
+        diam = masim%diams(f)
+        area = pi * diam * diam / 4.d0
+        lete0 = masim%letes0(f)
+        lete = dsqrt(sum(dr_f*dr_f))
+        lam = lete / lete0
+        if (broken) then
+            tension = 0.d0
+        elseif ( lam <= lamrp ) then
+            tension = Eb*(lam/lamp - 1.0d0) * diam
+        else
+            tensionr = Eb * (lamrp - 1.0d0)
+            tension = tensionr + Et * (lam/lamrp - 1.0d0)
+        end if
+        fuerza = tension * area
+        fuerzav = fuerza * dr_f / lete
+    case default
+        write(*,*) "Ley constitutiva desconocida, selector: ", selector
     end select
 
     ! ----------
@@ -446,7 +614,7 @@ subroutine calcular_tensiones_fibras(masim, r1, lams_fibs, tens_fibs)
     ! se calculan las fuerzas como vectores, entonces las dimensiones son (2,nfibs) y (2,nnods)
     implicit none
     type(MallaSim), intent(in) :: masim
-    real(8), intent(inout) :: r1(2,masim%nnods)
+    real(8), intent(in) :: r1(2,masim%nnods)
     real(8), intent(out) :: lams_fibs(masim%nfibs)
     real(8), intent(out) :: tens_fibs(masim%nfibs)
     integer :: f
@@ -543,10 +711,10 @@ subroutine vibrar_malla(masim, nveces, drmag, r1)
             else
                 fza_n = fzas_nods(:,n)
                 fza_n_mag = dsqrt(sum(fza_n*fza_n))
-                if (fza_n_mag < 1.d-10) then
+                if (fza_n_mag < 1.d-6) then
                     dr_n = 0.d0
                 else
-                    dr_n = drmag * fza_N / fza_n_mag
+                    dr_n = drmag * fza_n / fza_n_mag
                 end if
                 r1(:,n) = r1(:,n) + dr_n(:)
             end if
@@ -585,8 +753,16 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     ! ----------
 
     ! deformo afin
-    call deformar_afin(masim, Fmacro, r1)
-    ! encuentro perturbaciones respecto de la afin haciendo pasos de vibracion
+    if (.false.) then
+        ! Deformo toda la malla afin antes de comenzar la vibracion
+        call deformar_afin(masim, Fmacro, r1)
+    else
+        ! Deformo solamente la frontera de forma afin
+        r1 = masim%rnods
+        call deformar_afin_frontera(masim, Fmacro, r1)
+        call deformar_afin(masim, Fmacro, r1, axis=2)
+    end if
+    ! Comienzo a mover los nodos segun las resultantes nodales
     do paso=1,npasos
         nveces = vec_veces(paso)
         drmag = vec_drmags(paso)
@@ -612,6 +788,112 @@ end subroutine calcular_equilibrio_vibracional
 
 ! ================================================================================
 ! ================================================================================
+subroutine calcular_plasticidad_rotura(masim, dt)
+    ! Ante una deformacion dada (masim%rnods) calcula la deformacion plastica
+    ! que sufren las fibras. Son dos valores:
+    ! dotlamp = tasa de deformacion plastica
+    ! broken = indicador de si la fibra se rompe o no
+    ! ----------
+    implicit none
+    ! ----------
+    type(MallaSim), intent(inout) :: masim
+    real(8), intent(in) :: dt
+    ! ----------
+    logical :: brokens(masim%nfibs)
+    real(8) :: dotlamps(masim%nfibs)
+    ! parametros constitutivos de plasticidad y rotura
+    real(8) :: doteps0 ! parametro dimensional proporcional de plasticidad
+    real(8) :: s0 ! resistencia a la fluencia inicial
+    integer :: nhard ! parametro de endurecimiento por deformacion plastica
+    real(8) :: elonlimit ! limite de rotura por elongacion
+    ! resto
+    integer :: f
+    real(8) :: d_f
+    real(8) :: Area_f
+    real(8) :: lete0_f
+    real(8) :: Vol_f
+    integer :: n1_f, n2_f
+    real(8) :: r_n1_f(2), r_n2_f(2)
+    real(8) :: dr_f(2)
+    real(8) :: lete_f
+    real(8) :: lam_f
+    real(8) :: a_f(2)
+    real(8) :: ten_f, vfza_f(2)
+    real(8) :: lamp_f
+    ! ----------
+    real(8) :: s_f
+    real(8) :: dotlamp_f
+    logical :: broken_f
+    ! ----------
+
+    ! Parametros constitutivos importantes para plasticidad y rotura
+    doteps0 = masim%param(4)
+    s0 = masim%param(5)
+    nhard = masim%param(6)
+    elonlimit = masim%param(7)
+    ! Bucle por las fibras para ir calculando tensiones actuales
+    do f=1,masim%nfibs
+        ! Guardo informacion en variables mas sencillas
+        d_f = masim%diams(f) ! Diametro inicial de la fibra f
+        Area_f = pi * d_f * d_f / 4.d0 ! Seccion transversal inicial de la fibra f
+        lete0_f = masim%letes0(f) ! Longitud extremo-extremo inicial de la fibra f
+        Vol_f = Area_f * lete0_f ! Volumen de la fibra f
+        n1_f = masim%fibs(1,f) ! Nodo inicial de la fibra f
+        n2_f = masim%fibs(2,f) ! Nodo final de la fibra f
+        r_n1_f = masim%rnods(:,n1_f) ! Posicion actual de n1_f
+        r_n2_f = masim%rnods(:,n2_f) ! Posicion actual de n2_f
+        dr_f = r_n2_f - r_n1_f ! Vector fibra: apunta de nodo inicial a nodo final y su magnitud es la longitud actual
+        lete_f = dsqrt(sum(dr_f*dr_f)) ! Longitud extremo-extremo actual
+        lam_f = lete_f / lete0_f ! Elongacion extremo-extremo
+        a_f = dr_f/lete_f * lam_f ! Vector orientacion de la fibra, su magnitud es la elongacion lam_f
+        ! Calculo las tensiones
+        call calcular_tension_fibra(masim, f, dr_f, ten_f, vfza_f)
+        ! Calculo la plasticidad
+        broken_f =  masim%brokens(f)
+        lamp_f = masim%lamps(f)
+        if (broken_f) then
+            ! esta fibra esta rota y no deforma mas, su plasticidad queda constante
+            dotlamp_f = 0.d0
+        else
+            ! esta fibra puede romperse o plastificar
+            if (lam_f>elonlimit) then
+                ! se rompe
+                print *, "tac"
+                broken_f = .true.
+                dotlamp_f = 0.d0
+            else
+                ! plastifica poco o mucho
+                s_f = s0 * lamp_f**nhard
+                dotlamp_f = doteps0 * dsinh(ten_f/s_f)
+            end if
+        end if
+        brokens(f) = broken_f
+        dotlamps(f) = dotlamp_f
+        lamp_f = lamp_f + dotlamp_f*dt
+        if ( (lam_f>1.d0) .and. (lamp_f > lam_f) ) then
+            !print *, "lamp_f>lam_f en fibra: ", f, lam_f, lamp_f
+            if (lamp_f > elonlimit) then
+                print *, "Tac!", lam_f, lamp_f
+                !call escribir_mallita(masim, "malla_con_error.txt"//repeat(" ", 120))
+                brokens(f) = .true.
+                dotlamps(f) = 0.d0 !
+                lamp_f = masim%lamps(f) ! no plastifico, porque rompi
+            end if
+        end if
+        ! Actualizo informacion en la propia malla
+        masim%brokens(f) = broken_f
+        masim%lamps(f) = lamp_f
+    end do
+    ! Actualizo la propia malla
+
+    ! ----------
+end subroutine calcular_plasticidad_rotura
+! ================================================================================
+! ================================================================================
+
+
+! ================================================================================
+! ================================================================================
 subroutine homogeneizacion(masim, r1, Tmacro)
     ! Calcula el tensor de tensiones como producto de la homogeneizacion de las
     ! tensiones de las fibras.
@@ -622,8 +904,6 @@ subroutine homogeneizacion(masim, r1, Tmacro)
     real(8), intent(in) :: r1(2,masim%nnods)
     real(8), intent(out) :: Tmacro(2,2) ! tension macroscopica de Cauchy
     ! ----------
-    real(8) :: fzas_fibs(2,masim%nfibs)
-    real(8) :: fzas_nods(2,masim%nnods)
     integer :: f
     real(8) :: d_f
     real(8) :: Area_f
@@ -639,7 +919,6 @@ subroutine homogeneizacion(masim, r1, Tmacro)
     real(8) :: Vol_RVE
     ! ----------
 
-!    call calcular_fuerzas(masim, r1, fzas_fibs, fzas_nods)
     Tmacro = 0.d0
     do f=1,masim%nfibs
         d_f = masim%diams(f)

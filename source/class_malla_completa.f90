@@ -190,17 +190,17 @@ SUBROUTINE escribir_malla(malla, nomarch)
     ! ----------
     ! Parametros
     WRITE(fid,'(A11)') "*Parametros"
-    WRITE(fid,'(E20.8E2)') malla%sidelen
-    WRITE(fid,'(E20.8E2)') malla%diamed
-    WRITE(fid,'(E20.8E2)') malla%volfrac
-    WRITE(fid,'(E20.8E2)') malla%lenseg
-    WRITE(fid,'(E20.8E2)') malla%themax * 180.d0 / PI ! lo guardo en grados
+    WRITE(fid,'(E20.8E4)') malla%sidelen
+    WRITE(fid,'(E20.8E4)') malla%diamed
+    WRITE(fid,'(E20.8E4)') malla%volfrac
+    WRITE(fid,'(E20.8E4)') malla%lenseg
+    WRITE(fid,'(E20.8E4)') malla%themax * 180.d0 / PI ! lo guardo en grados
     ! ----------
     ! Nodos
     WRITE(fid,'(A12)') "*Coordenadas"
     WRITE(fid,'(I12)') malla%nnods
     DO i=1,malla%nnods
-        WRITE(fid, '(I12,I2,2E20.8E2)') i-1, malla%tipos(i), malla%rnods(:,i)
+        WRITE(fid, '(I12,I2,2E20.8E4)') i-1, malla%tipos(i), malla%rnods(:,i)
     END DO
     ! ----------
     ! Segmentos
@@ -214,7 +214,7 @@ SUBROUTINE escribir_malla(malla, nomarch)
     WRITE(fid,'(A7)') "*Fibras"
     WRITE(fid,'(I12)') malla%nfibs
     DO i=1,malla%nfibs
-        WRITE(formato, '(A18,I0,A4)') "(I12,3E20.8E2,I12,",malla%fibsne(i),"I12)"
+        WRITE(formato, '(A18,I0,A4)') "(I12,3E20.8E4,I12,",malla%fibsne(i),"I12)"
         WRITE(fid,formato) i-1, malla%fibsdls(i), malla%fibsds(i), malla%fibsdths(i), malla%fibsne(i), malla%fibsje(malla%fibsie(i):malla%fibsie(i+1)-1) - 1
     END DO
     ! ----------
