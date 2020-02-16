@@ -69,6 +69,7 @@ SUBROUTINE Desde_MallaCom(macom, masim, nparcon, parcon)
     integer, allocatable :: oldnods(:) ! array para saber como se conectan los nodos de macom y de masim
     real(8) :: r1(2), r2(2), dr(2), loco0_s, loco0, lete0
     logical :: cond
+    real(8) :: L_2
     ! ----------
 
     ! ----------
@@ -201,6 +202,9 @@ SUBROUTINE Desde_MallaCom(macom, masim, nparcon, parcon)
     ! ya tengo los nodos (tipos y coordenadas), ahora hago las masks
     masim%mf = masim%tipos == 1
     masim%mi = masim%tipos == 2
+    ! Desplazo las coordenadas para dejar el cero en el medio del rve
+    L_2 = 0.5d0 * masim%sidelen
+    masim%rnods0 = masim%rnods0 - L_2
     ! y copio rnods0 a rnods
     allocate( masim%rnods(2,nnods) )
     masim%rnods = masim%rnods0
@@ -209,6 +213,7 @@ SUBROUTINE Desde_MallaCom(macom, masim, nparcon, parcon)
     allocate( masim%param(nparcon) )
     masim%nparam = nparcon
     masim%param = parcon
+    ! ----------
     ! ----------
     write(*,*) "Malla simplificada lista"
 
@@ -235,8 +240,7 @@ SUBROUTINE leer_mallita(masim, nomarch, numparamcon, paramcon)
     real(8) :: diam, lete0, lamr, lamp
     logical :: broken
     integer :: n0, n1
-    CHARACTER(LEN=120) :: formato
-
+    real(8) :: L_2
     ! ----------
     fid = get_file_unit()
     OPEN(UNIT=fid, FILE=TRIM(nomarch), STATUS="OLD")
@@ -275,6 +279,18 @@ SUBROUTINE leer_mallita(masim, nomarch, numparamcon, paramcon)
         masim%rnods(:,i) = r
         masim%tipos(i) = tipo
     END DO
+    ! Cambio coordenadas para tener el cero en el centro del RVE
+    ! OJO por ahora si hay distorsion (F12 o F21) esto no anda tan facil
+    L_2 = 0.5d0 * masim%sidelen
+    masim%rnods0 = masim%rnods0 - L_2
+    if (masim%status_deformed) then
+        L_2 = 0.5d0 * masim%sidelen * masim%Fmacro(1,1)
+        masim%rnods(1,:) = masim%rnods(1,:) - L_2
+        L_2 = 0.5d0 * masim%sidelen * masim%Fmacro(2,2)
+        masim%rnods(2,:) = masim%rnods(2,:) - L_2
+    else
+        masim%rnods = masim%rnods0
+    end if
     ! ----------
     ! Fibras
     iStatus = FindStringInFile("*fibras", fid, .TRUE.)
@@ -316,7 +332,7 @@ SUBROUTINE escribir_mallita(masim, nomarch)
     INTEGER :: fid
     INTEGER :: i
     CHARACTER(LEN=120) :: formato
-
+    real(8) :: L_2, r0(2,masim%nnods), r1(2,masim%nnods)
     ! ----------
     fid = get_file_unit()
     OPEN(UNIT=fid, FILE=TRIM(nomarch), STATUS="REPLACE")
@@ -341,7 +357,18 @@ SUBROUTINE escribir_mallita(masim, nomarch)
     WRITE(fid,'(A12)') "*Coordenadas"
     WRITE(fid,'(I12)') masim%nnods
     DO i=1,masim%nnods
-        WRITE(fid, '(I12,I2,4E20.8E4)') i-1, masim%tipos(i), masim%rnods0(:,i), masim%rnods(:,i)
+        ! Tengo que escribir las coordenadas con el cero en el vertice inferior izquierdo
+        L_2 = 0.5d0 * masim%sidelen
+        r0 = masim%rnods0 + L_2
+        if (masim%status_deformed) then
+            L_2 = 0.5d0 * masim%sidelen * masim%Fmacro(1,1)
+            r1(1,:) = masim%rnods(1,:) + L_2
+            L_2 = 0.5d0 * masim%sidelen * masim%Fmacro(2,2)
+            r1(2,:) = masim%rnods(2,:) + L_2
+        else
+            r1 = r0
+        end if
+        WRITE(fid, '(I12,I2,4E20.8E4)') i-1, masim%tipos(i), r0(:,i), r1(:,i)
     END DO
     ! ----------
     ! Fibras
@@ -585,6 +612,7 @@ subroutine calcular_tension_fibra(masim, f, dr_f, tension, fuerzav)
         lete0 = masim%letes0(f)
         lete = dsqrt(sum(dr_f*dr_f))
         lam = lete / lete0
+        ! Ahora si calculo la tension
         if (broken) then
             tension = 0.d0
         elseif ( lam <= lamrp ) then
@@ -753,7 +781,7 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     ! ----------
 
     ! deformo afin
-    if (.false.) then
+    if (npasos==0) then
         ! Deformo toda la malla afin antes de comenzar la vibracion
         call deformar_afin(masim, Fmacro, r1)
     else
@@ -804,7 +832,7 @@ subroutine calcular_plasticidad_rotura(masim, dt)
     ! parametros constitutivos de plasticidad y rotura
     real(8) :: doteps0 ! parametro dimensional proporcional de plasticidad
     real(8) :: s0 ! resistencia a la fluencia inicial
-    integer :: nhard ! parametro de endurecimiento por deformacion plastica
+    real(8) :: nhard ! parametro de endurecimiento por deformacion plastica
     real(8) :: elonlimit ! limite de rotura por elongacion
     ! resto
     integer :: f
@@ -820,6 +848,8 @@ subroutine calcular_plasticidad_rotura(masim, dt)
     real(8) :: a_f(2)
     real(8) :: ten_f, vfza_f(2)
     real(8) :: lamp_f
+    real(8) :: lamr_f
+    real(8) :: lamef_f ! es un valor de elongacion efectiva, o elongacion elastica (la que va con la tension) = lam/lamr/lamp
     ! ----------
     real(8) :: s_f
     real(8) :: dotlamp_f
@@ -845,22 +875,29 @@ subroutine calcular_plasticidad_rotura(masim, dt)
         dr_f = r_n2_f - r_n1_f ! Vector fibra: apunta de nodo inicial a nodo final y su magnitud es la longitud actual
         lete_f = dsqrt(sum(dr_f*dr_f)) ! Longitud extremo-extremo actual
         lam_f = lete_f / lete0_f ! Elongacion extremo-extremo
+        lamr_f = masim%lamsr(f)
         a_f = dr_f/lete_f * lam_f ! Vector orientacion de la fibra, su magnitud es la elongacion lam_f
         ! Calculo las tensiones
         call calcular_tension_fibra(masim, f, dr_f, ten_f, vfza_f)
         ! Calculo la plasticidad
         broken_f =  masim%brokens(f)
         lamp_f = masim%lamps(f)
+        lamef_f = lam_f / lamp_f / lamr_f
         if (broken_f) then
             ! esta fibra esta rota y no deforma mas, su plasticidad queda constante
             dotlamp_f = 0.d0
         else
             ! esta fibra puede romperse o plastificar
-            if (lam_f>elonlimit) then
+            if (ten_f>elonlimit) then
                 ! se rompe
-                print *, "tac"
+                print *, "tuc"
                 broken_f = .true.
                 dotlamp_f = 0.d0
+!            elseif (lam_f>elonlimit) then
+!                ! se rompe
+!                print *, "tac"
+!                broken_f = .true.
+!                dotlamp_f = 0.d0
             else
                 ! plastifica poco o mucho
                 s_f = s0 * lamp_f**nhard

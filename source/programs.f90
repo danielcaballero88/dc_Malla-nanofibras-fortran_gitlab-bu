@@ -227,7 +227,6 @@ subroutine main_traccion(filename_malla_in, nparcon, parcon, num_pasos, lista_ve
     do while ( Fmacro(1,1) .le. F11fin )
         ! Calculo el equilibrio de la malla para el Fmacro dado en este paso de tiempo
         call calcular_equilibrio_vibracional(ms, num_pasos, lista_veces, lista_drmags, Fmacro)
-        call escribir_mallita(ms, "malla_test.txt")
         ! Guardo en archivo la informacion constitutiva para este step
         write(*,"(2E20.8E4)") Fmacro(1,1), ms%Tmacro(1,1)
         write(fid_curva,"(8E20.8E4)") Fmacro, ms%Tmacro

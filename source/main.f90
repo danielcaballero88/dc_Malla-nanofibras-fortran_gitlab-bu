@@ -168,8 +168,10 @@ program Malla_Nanofibras_Fortran
             read(fid_cf,*) num_pasos_vibracion
             if (allocated(vec_veces)) deallocate(vec_veces)
             if (allocated(vec_drmags)) deallocate(vec_drmags)
-            allocate( vec_veces(num_pasos_vibracion) )
-            allocate( vec_drmags(num_pasos_vibracion) )
+            if (num_pasos_vibracion>0) then
+                allocate( vec_veces(num_pasos_vibracion) )
+                allocate( vec_drmags(num_pasos_vibracion) )
+            end if
             read(fid_cf,*) vec_veces
             read(fid_cf,*) vec_drmags
             read(fid_cf,*) opcion_Fmacro
@@ -262,8 +264,10 @@ program Malla_Nanofibras_Fortran
             read(fid_cf,*) num_pasos_vibracion
             if (allocated(vec_veces)) deallocate(vec_veces)
             if (allocated(vec_drmags)) deallocate(vec_drmags)
-            allocate( vec_veces(num_pasos_vibracion) )
-            allocate( vec_drmags(num_pasos_vibracion) )
+            if (num_pasos_vibracion>0) then
+                allocate( vec_veces(num_pasos_vibracion) )
+                allocate( vec_drmags(num_pasos_vibracion) )
+            end if
             read(fid_cf,*) vec_veces
             read(fid_cf,*) vec_drmags
             read(fid_cf,*) delta_t, dot_F11, dot_F22, F11_fin
