@@ -317,27 +317,6 @@ program Malla_Nanofibras_Fortran
     ! --------------------------------------------------------------------------
 
 
-
-    !    mallaname = "default"
-    !    opcion = 1
-!    ! ==========
-!    select case (opcion)
-!    ! ==========
-!    case (1)
-!    ! ==========
-!        call main_intersectar(mallaname)
-!    ! ==========
-!    case (2)
-!    ! ==========
-!        call main_simplificar(mallaname)
-!    ! ==========
-!    case (3)
-!    ! ==========
-!        call main_equilibrio(mallaname)
-!    ! ==========
-!    end select
-!    ! ==========
-
 end program Malla_Nanofibras_Fortran
 ! ==========================================================================
 ! ==========================================================================
