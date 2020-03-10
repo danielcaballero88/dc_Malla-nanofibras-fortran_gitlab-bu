@@ -711,7 +711,7 @@ end subroutine calcular_fuerzas
 
 ! ================================================================================
 ! ================================================================================
-subroutine vibrar_malla(masim, nveces, drmag, r1)
+subroutine desplazar_nodos_malla(masim, nveces, drmag, fza_ref, fza_tol, r1, balanced)
     ! Mueve los nodos nveces segun la direccion de la resultante
     ! Todos los nodos se mueven segun el valor drmag
     ! Cada vez se calculan las fuerzas de las fibras y la resultante
@@ -722,42 +722,59 @@ subroutine vibrar_malla(masim, nveces, drmag, r1)
     type(MallaSim), intent(inout) :: masim
     integer, intent(in) :: nveces
     real(8), intent(in) :: drmag
+    real(8), intent(in) :: fza_ref
+    real(8), intent(in) :: fza_tol
     real(8), intent(inout) :: r1(2,masim%nnods)
+    logical, intent(out) :: balanced(masim%nnods)
     ! ----------
     real(8) :: fzas_fibs(2,masim%nfibs)
     real(8) :: fzas_nods(2,masim%nnods)
+    real(8) :: fzas_nods_mags(masim%nnods)
     integer :: vez, n
     real(8) :: fza_n(2), fza_n_mag, dr_n(2)
     ! ----------
 
+    balanced = .false.
     do vez=1,nveces
         call calcular_fuerzas(masim, r1, fzas_fibs, fzas_nods)
         do n=1,masim%nnods
             if (masim%tipos(n) == 1) then
                 ! nodo de frontera = nodo de Dirichlet
                 r1(:,n) = r1(:,n) ! sentencia innecesaria pero por ahora la dejo para que quede claro
+                fzas_nods_mags(n) = 0.d0
+                balanced(n) = .true.
             else
                 fza_n = fzas_nods(:,n)
                 fza_n_mag = dsqrt(sum(fza_n*fza_n))
-                if (fza_n_mag < 1.d-6) then
+                fzas_nods_mags(n) = fza_n_mag
+                if (fza_n_mag < fza_tol) then
                     dr_n = 0.d0
+                    balanced(n) = .true.
                 else
-                    dr_n = drmag * fza_n / fza_n_mag
+                    dr_n = drmag * fza_n / fza_ref
+                    balanced(n) = .false.
                 end if
                 r1(:,n) = r1(:,n) + dr_n(:)
             end if
         end do
+        if ( all(balanced) ) then
+            write(*,*) "balanced!", vez
+            exit
+        end if
     end do
+    if ( .not. all(balanced) ) then
+        write(*,*) "maxres: ", maxval( fzas_nods_mags )
+    end if
 
     ! ----------
-end subroutine vibrar_malla
+end subroutine desplazar_nodos_malla
 ! ================================================================================
 ! ================================================================================
 
 
 ! ================================================================================
 ! ================================================================================
-subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags, Fmacro)
+subroutine calcular_equilibrio(masim, npasos, vec_veces, vec_drmags, f_ref, f_tol, Fmacro)
     ! Forma de calcular el equilibrio moviendo los nodos de forma iterativa segun
     ! la direccion de la resultante en un valor prescripto de desplazamiento (drmag)
     ! Se hace de forma progresiva empezando con drmag grande y terminando con drmag chico
@@ -768,6 +785,8 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     integer, intent(in) :: npasos
     integer, intent(in) :: vec_veces(npasos)
     real(8), intent(in) :: vec_drmags(npasos)
+    real(8), intent(in) :: f_ref
+    real(8), intent(in) :: f_tol
     real(8), intent(in) :: Fmacro(2,2)
     ! ----------
     real(8) :: r1(2,masim%nnods)
@@ -778,6 +797,7 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     real(8) :: lams_fibras(masim%nfibs)
     real(8) :: tens_fibras(masim%nfibs)
     real(8) :: Tmacro(2,2)
+    logical :: equilibrio(masim%nnods)
     ! ----------
 
     ! deformo afin
@@ -788,13 +808,17 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
         ! Deformo solamente la frontera de forma afin
         r1 = masim%rnods
         call deformar_afin_frontera(masim, Fmacro, r1)
-        call deformar_afin(masim, Fmacro, r1, axis=2)
+!        call deformar_afin(masim, Fmacro, r1, axis=2)
     end if
     ! Comienzo a mover los nodos segun las resultantes nodales
     do paso=1,npasos
         nveces = vec_veces(paso)
         drmag = vec_drmags(paso)
-        call vibrar_malla(masim, nveces, drmag, r1)
+        call desplazar_nodos_malla(masim, nveces, drmag, f_ref, f_tol, r1, equilibrio)
+        ! chequeo equilibrio
+        if ( all(equilibrio) ) then
+            exit
+        end if
     end do
     ! recalculo el equilibrio para tener las tensiones
     call calcular_tensiones_fibras(masim, r1, lams_fibras, tens_fibras)
@@ -809,7 +833,7 @@ subroutine calcular_equilibrio_vibracional(masim, npasos, vec_veces, vec_drmags,
     ! y voila
 
     ! ----------
-end subroutine calcular_equilibrio_vibracional
+end subroutine calcular_equilibrio
 ! ================================================================================
 ! ================================================================================
 
@@ -890,14 +914,8 @@ subroutine calcular_plasticidad_rotura(masim, dt)
             ! esta fibra puede romperse o plastificar
             if (ten_f>elonlimit) then
                 ! se rompe
-                print *, "tuc"
                 broken_f = .true.
                 dotlamp_f = 0.d0
-!            elseif (lam_f>elonlimit) then
-!                ! se rompe
-!                print *, "tac"
-!                broken_f = .true.
-!                dotlamp_f = 0.d0
             else
                 ! plastifica poco o mucho
                 s_f = s0 * lamp_f**nhard
@@ -991,212 +1009,6 @@ subroutine homogeneizacion(masim, r1, Tmacro)
 end subroutine homogeneizacion
 ! ================================================================================
 ! ================================================================================
-
-
-!! ================================================================================
-!! ================================================================================
-!subroutine calcular_equilibrio(masim, r1, maxiter, tol, iStatus)
-!    ! subrutina obsoleta para calcular el equilibrio de la malla
-!    implicit none
-!    ! ----------
-!    type(MallaSim), intent(in) :: masim
-!    real(8), intent(out) :: r1(2,masim%nnods)
-!    integer, intent(in) :: maxiter
-!    real(8), intent(in) :: tol
-!    integer, intent(out) :: iStatus
-!    ! ----------
-!    integer :: i,j,k,n,m
-!    real(8) :: dr(2,masim%nnods)
-!    real(8) :: A(2*masim%nnods,2*masim%nnods), b(2*masim%nnods), x(2*masim%nnods)
-!    real(8) :: pivot(2*masim%nnods), residuo(2*masim%nnods), orp
-!    integer :: concrit, iters
-!    integer :: iStat
-!    real(8) :: error_x
-!    real(8) :: aux1, aux2, aux3(2*masim%nnods,2*masim%nnods)
-!    integer :: iaux1, iaux2, iaux3
-!    ! ----------
-!
-!    ! ----------
-!    ! empiezo a resolver con el valor previo de coordenadas de la malla
-!    r1 = masim%rnods
-!    ! ----------
-!    m = 2*masim%nnods
-!    write(*,*) "Newton Raphson"
-!    aux1 = 1.d-3
-!    do i=1,maxiter
-!        write(*,*) "iter: ", i
-!        write(*,*) "Calculando A b"
-!        call calcular_A_b(masim,r1,A,b)
-!!        aux3 = 0.d0
-!!        do iaux1=1,m
-!!            iaux3 = 0
-!!            do iaux2=1,m
-!!                if (dabs(A(iaux1,iaux2)) > 1.d-6) then
-!!                    iaux3 = iaux3 + 1
-!!                    aux3(iaux1,iaux3) = A(iaux1,iaux2)
-!!                end if
-!!            end do
-!!        end do
-!
-!!        do j=1,m
-!!            A(j,1:j-1) = A(j,1:j-1)*0.5d0
-!!            A(j,j+1:m) = A(j,j+1:m)*0.5d0
-!!        end do
-!        write(*,*) "Gauss-Seidel"
-!!        call seidel(1,m,A,b,1.d0,x,residuo,iters,iStat)
-!!        call jacobi(m, A, b, x, iStat)
-!!        call gauss_seidel(m, A, b, x, 100, tol*1.d-1, iStat)
-!        call diagonal_iterativo(m, A, b, x, iStat)
-!!        call directo(m,A,b,x,iStat)
-!        error_x = maxval(dabs(x))
-!        aux2 = aux1*error_x
-!        if (aux2>aux1) aux2=aux1
-!        do j=1,m
-!            if (dabs(x(j))>aux2) x(j) = dsign(aux2,x(j))
-!!            if (dr(1,j)>aux2) dr(1,j) = aux2
-!!            if (dr(2,j)>aux2) dr(2,j) = aux2
-!        end do
-!        dr = reshape(x,shape(dr))
-!        r1 = r1 + dr
-!        write(*,*) "i:", i, "error_x: ", error_x, "/ tol:", tol
-!        if (error_x<tol) then
-!            ! convergio
-!            write(*,*) "Newton-Raphson convergio"
-!            iStatus = 0
-!            return
-!        end if
-!    end do
-!    ! ----------
-!    ! si llegue hasta aqui llegue a maxiter
-!    iStatus = 1
-!    write(*,*) "WARNING: maxiter alcanzado en metodo Newton-Raphson"
-!    ! ----------
-!
-!    ! ----------
-!end subroutine calcular_equilibrio
-!! ================================================================================
-!! ================================================================================
-
-
-!! ================================================================================
-!! ================================================================================
-!subroutine calcular_A_b(masim,r1, A, b)
-!    ! ----------
-!    ! Calculo la matriz tangente A y el vector de carga b
-!    ! el vector de carga esta dado por las fuerzas que ejercen las fibras en la configuracion dada por r1 (desplazamientos nodales)
-!    ! la matriz tangente la calculo numericamente variando las coordenadas de los nodos (para eso hago un loop sobre las fibras)
-!    ! ----------
-!    implicit none
-!    ! ----------
-!    type(MallaSim), intent(in) :: masim
-!    real(8), intent(in) :: r1(2,masim%nnods) ! coordenadas sobre las cuales voy a calcular la matriz tangente y el vector de cargas
-!    real(8), intent(out) :: A(2*masim%nnods,2*masim%nnods)
-!    real(8), intent(out) :: b(2*masim%nnods)
-!    ! ----------
-!    real(8) :: Af(2,2), bf(2) ! matriz y vectores elementales de una fibra que suman a los globales A y b
-!    integer :: f, n1f, n2f ! indice de fibra y sus nodos inicial y final
-!    real(8) :: rn1f(2), rn2f(2), drf(2) ! posiciones inicial y final de la fibra f, y su vector de fibra
-!    real(8) :: fzaf, fzavf(2) ! fuerza escalar y vectorial de la fibra f
-!    ! variaciones:
-!    real(8) :: rn1f_mx(2), rn1f_px(2), rn1f_my(2), rn1f_py(2)
-!    real(8) :: drf_n1mx(2), drf_n1px(2), drf_n1my(2), drf_n1py(2)
-!    real(8) :: fzaf_mx, fzavf_mx(2)
-!    real(8) :: fzaf_px, fzavf_px(2)
-!    real(8) :: fzaf_my, fzavf_my(2)
-!    real(8) :: fzaf_py, fzavf_py(2)
-!    ! derivada numerica
-!    real(8) :: dfza_dx(2), dfza_dy(2)
-!    ! fila y columna para ensamblar
-!    integer :: row, col
-!    !
-!    integer :: n ! indice de nodo
-!    ! ----------
-!
-!    ! ----------
-!    A = 0.d0
-!    b = 0.d0
-!    ! ----------
-!    do f=1,masim%nfibs
-!        ! nodos de la fibra f
-!        n1f = masim%fibs(1,f)
-!        n2f = masim%fibs(2,f)
-!        ! posiciones de esos nodos
-!        rn1f = r1(:,n1f)
-!        rn2f = r1(:,n2f)
-!        ! vector fibra
-!        drf = rn2f - rn1f
-!        ! y ahora con variaciones
-!        rn1f_mx = rn1f - deltax
-!        rn1f_px = rn1f + deltax
-!        rn1f_my = rn1f - deltay
-!        rn1f_py = rn1f + deltay
-!        drf_n1mx = rn2f - rn1f_mx
-!        drf_n1px = rn2f - rn1f_px
-!        drf_n1my = rn2f - rn1f_my
-!        drf_n1py = rn2f - rn1f_py
-!        ! fuerzas
-!        call calcular_fuerza_fibra(masim, f, drf, fzaf, fzavf)
-!        call calcular_fuerza_fibra(masim, f, drf_n1mx, fzaf_mx, fzavf_mx)
-!        call calcular_fuerza_fibra(masim, f, drf_n1px, fzaf_px, fzavf_px)
-!        call calcular_fuerza_fibra(masim, f, drf_n1my, fzaf_my, fzavf_my)
-!        call calcular_fuerza_fibra(masim, f, drf_n1py, fzaf_py, fzavf_py)
-!        ! ahora la derivada numerica
-!        dfza_dx = (fzavf_px - fzavf_mx) * delta21
-!        dfza_dy = (fzavf_py - fzavf_my) * delta21
-!        ! matriz local y vector local
-!        Af(1,1) = dfza_dx(1)
-!        Af(2,2) = dfza_dy(2)
-!        Af(1,2) = dfza_dx(2)
-!        Af(2,1) = Af(1,2)
-!        bf(:) = - fzavf
-!        ! ----------
-!        ! ya tengo la derivada que aporta esta fibra
-!        ! ahora ensamblo en matriz y vector globales
-!        ! ----------
-!        ! primero el vector de cargas
-!        row = (n1f-1)*2 + 1 ! apunta a donde se ubica el primer dof del nodo n1f
-!        b(row:row+1) = b(row:row+1) + bf
-!        row = (n2f-1)*2 + 1 ! apunta a donde se ubica el primer dof del nodo n2f
-!        b(row:row+1) = b(row:row+1) - bf
-!        ! ahora la matriz  en 4 partes
-!        ! n1f n1f
-!        row = (n1f-1)*2 + 1
-!        col = (n1f-1)*2 + 1
-!        A(row:row+1,col:col+1) = A(row:row+1,col:col+1) + Af
-!        ! n2f n2f
-!        row = (n2f-1)*2 + 1
-!        col = (n2f-1)*2 + 1
-!        A(row:row+1,col:col+1) = A(row:row+1,col:col+1) + Af
-!        ! cruzadas
-!        row = (n1f-1)*2 + 1
-!        col = (n2f-1)*2 + 1
-!        A(row:row+1,col:col+1) = A(row:row+1,col:col+1) - Af
-!        !
-!        row = (n2f-1)*2 + 1
-!        col = (n1f-1)*2 + 1
-!        A(row:row+1,col:col+1) = A(row:row+1,col:col+1) - Af
-!        ! presto
-!    end do
-!    ! ----------
-!    ! por ultimo las condiciones de dirichlet
-!    do n=1,masim%nnods
-!        if (masim%tipos(n)==1) then
-!            ! nodo frontera es dirichlet
-!            ! debo ensamblar la ecuacion: 1.d0 * dr_i = 0.0d0
-!            row = (n-1)*2 + 1
-!            A(row:row+1,:) = 0.d0 ! hago cero las dos filas del nodo n
-!            A(:,row:row+1) = 0.d0 ! y tambien las columnas ya que este dr siempre va a ser cero
-!            A(row,row) = 1.d0  ! pongo un uno en la diagonal
-!            A(row+1,row+1) = 1.d0  ! idem
-!            b(row:row+1) = 0.d0 ! hago cero el vector de carga
-!        end if
-!    end do
-!    ! ----------
-!
-!    ! ----------
-!end subroutine calcular_A_b
-!! ================================================================================
-!! ================================================================================
 
 
 ! ==============================================================================

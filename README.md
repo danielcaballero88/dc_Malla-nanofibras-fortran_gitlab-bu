@@ -136,8 +136,9 @@ Líneas
 3. [npasos]. Número de pasos de vibración.
 4. [vec_veces]. Número de veces que se vibra en cada paso.
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
-6. [Opcion_F(integer)]. Opción si se da un solo F (1) o si se da un archivo con un F por línea para calcular una curva constitutiva (2).
-7. [Fmacro] o [archivo_F]. Si es [F_macro] se dan los 4 valores en orden: F11, F21, F12, F22 (orden Fortran, por columnas). Si es [archivo_F] se debe tener un archivo con el número de Fs en la primera línea y un F por línea. En el último caso, los archivos de salida tienen una numeración agregada al final así se guardan todas las mallas equilibradas sin sobreescribir archivos.
+6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (para calcular el equilibrio). La fuerza de referencia se utiliza para linealizar el equilibrio y hallar los desplazamientos nodales. La fuerza de tolerancia indica el valor umbral para el cual se puede considerar que un nodo esta en equilibrio. Estos valores se deben obtener acorde a los parametros constitutivos de las nanofibras.
+7. [Opcion_F(integer)]. Opción si se da un solo F (1) o si se da un archivo con un F por línea para calcular una curva constitutiva (2).
+8. [Fmacro] o [archivo_F]. Si es [F_macro] se dan los 4 valores en orden: F11, F21, F12, F22 (orden Fortran, por columnas). Si es [archivo_F] se debe tener un archivo con el número de Fs en la primera línea y un F por línea. En el último caso, los archivos de salida tienen una numeración agregada al final así se guardan todas las mallas equilibradas sin sobreescribir archivos.
 
 Ejemplo: 
 
@@ -148,6 +149,7 @@ Equilibrar
 4
 10    10    10    10
 10.d0    1.d0    0.1d0    0.01d0
+100.d0	0.01d0
 1
 1.1d0    0.d0    0.d0    1.d0
 </pre>
@@ -160,7 +162,7 @@ Luego, el 1 indica que el tensor de deformaciones se da en la linea siguiente, e
 
 ### * Traccion 
 
-Esta instruccion es para llevar a cabo una simulacion de un ensayo de traccion. Se realiza un esquema explícito temporal. En cada paso de tiempo se calcula el equilibrio de la malla y la evolución de los parámetros que puedan variar con el tiempo (plasticidad, rotura de fibras, etc.).
+Esta instruccion es para llevar a cabo una simulacion de un ensayo de traccion con F11 y F22 determinados en cada paso. Se realiza un esquema explícito temporal. En cada paso de tiempo se calcula el equilibrio de la malla y la evolución de los parámetros que puedan variar con el tiempo (plasticidad, rotura de fibras, etc.).
 
 Líneas:
 
@@ -169,8 +171,10 @@ Líneas:
 3. [npasos]. Número de pasos de vibración (para cada paso temporal se calcula un equilibrio mediante método vibracional). 
 4. [vec_veces]. Número de veces que se vibra en cada paso.
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
-6. [dT] [dotF11] [dotF22] [F11fin]. Paso temporal, tasa de deformación axial, tasa de deformación transversal y deformación axial final.
-7. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
+6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
+7. [dT] [dotF11] [dotF22] [F11fin]. Paso temporal, tasa de deformación axial, tasa de deformación transversal y deformación axial final.
+8. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
+9. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
 
 Ejemplo: 
 
@@ -181,5 +185,37 @@ Traccion
 4
 10    10    10    10
 10.d0    1.d0    0.1d0    0.01d0
+100.d0	0.01d0
 0.1d0    0.01d0    -0.01d0    1.2d0
+1	0.01d0
+</pre>
+
+### * Uniaxial 
+
+Esta instruccion es para llevar a cabo una simulacion de un ensayo de traccion uniaxial. Se realiza un esquema explícito temporal. En cada paso de tiempo se calcula el equilibrio de la malla y la evolución de los parámetros que puedan variar con el tiempo (plasticidad, rotura de fibras, etc.).
+
+Líneas:
+
+1. Traccion 
+2. [Opcion_archivo (integer)] [Archivo (character(len=120))]. Si Opcion_archivo = 3, en este caso, se empieza desde una malla previamente deformada, con un Fmacro dado en la malla.
+3. [npasos]. Número de pasos de vibración (para cada paso temporal se calcula un equilibrio mediante método vibracional). 
+4. [vec_veces]. Número de veces que se vibra en cada paso.
+5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
+6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
+7. [dT] [dotF11] [t22] [F11fin]. Paso temporal, tasa de deformación axial, tracción transversal (=0.d0 para tracción uniaxial, otro valor si se desea) y deformación axial final.
+8. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
+9. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
+
+Ejemplo: 
+
+<pre>
+* 1
+Traccion 
+1	Malla_completa.txt 
+4
+10    10    10    10
+10.d0    1.d0    0.1d0    0.01d0
+100.d0	0.01d0
+0.1d0    0.01d0    -0.01d0    1.2d0
+1	0.01d0
 </pre>

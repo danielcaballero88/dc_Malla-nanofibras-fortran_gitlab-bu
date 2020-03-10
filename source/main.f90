@@ -42,6 +42,7 @@ program Malla_Nanofibras_Fortran
     integer :: num_pasos_vibracion
     integer, allocatable :: vec_veces(:)
     real(8), allocatable :: vec_drmags(:)
+    real(8) :: fuerza_ref, fuerza_tol
     integer :: num_Fmacro
     real(8), allocatable :: vec_Fmacro(:,:,:)
     integer :: j_F
@@ -174,6 +175,7 @@ program Malla_Nanofibras_Fortran
             end if
             read(fid_cf,*) vec_veces
             read(fid_cf,*) vec_drmags
+            read(fid_cf,*) fuerza_ref, fuerza_tol
             read(fid_cf,*) opcion_Fmacro
             ! Armo array de deformaciones
             if (opcion_Fmacro==1) then
@@ -204,7 +206,7 @@ program Malla_Nanofibras_Fortran
                 do j_F=1,num_Fmacro
                     Fmacro = vec_Fmacro(:,:,j_F)
                     write(str_j_F, "(A1, I7.7)") "_", j_F ! 7.7 indica que el campo es de 7 y se usan como minimo 7, entonces imprime los ceros
-                    call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                    call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, str_j_F)
                 end do
             elseif (opcion_archivo==2) then
                 ! Caso de una lista de mallas en un archivo
@@ -220,7 +222,7 @@ program Malla_Nanofibras_Fortran
                     do j_F=1,num_Fmacro
                         Fmacro = vec_Fmacro(:,:,j_F)
                         write(str_j_F, "(A1, I7.7)") "_", j_F ! 7.7 indica que el campo es de 7 y se usan como minimo 7, entonces imprime los ceros
-                        call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
+                        call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, str_j_F)
                     end do
                 end do
                 ! Cierro el archivo de la lista de mallas
@@ -232,27 +234,6 @@ program Malla_Nanofibras_Fortran
                 write(*,*) "En Instruccion: ", str_instruccion
                 stop
             end if
-!            if (opcion_Fmacro==1) then
-!                ! caso de un solo F dado en configfile
-!                read(fid_cf,*) Fmacro
-!                call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags)
-!            elseif (opcion_Fmacro==2) then
-!                ! caso de un archivo dando muchos F
-!                read(fid_cf,*) archivo_Fmacro
-!                fid_Fmacro = get_file_unit()
-!                open(unit=fid_Fmacro, file=trim(archivo_Fmacro), status="old")
-!                read(fid_Fmacro,*) num_Fmacro
-!                do j_F=1,num_Fmacro
-!                    read(fid_Fmacro,*) Fmacro
-!                    write(str_j_F, "(A1, I7.7)") "_", j_F ! 4.4 indica que el campo es de 4 y se usan como minimo 4, entonces imprime los ceros
-!                    call main_equilibrar(nombre_archivo, numparam, param, Fmacro, num_pasos_vibracion, vec_veces, vec_drmags, str_j_F)
-!                end do
-!            else
-!                write(*,*) "Error en opcion_Fmacro, deberia ser 1 o 2, y es: ", opcion_Fmacro
-!                write(*,*) "En etiqueta: ", str_etiqueta
-!                write(*,*) "En instruccion: ", str_instruccion
-!                stop
-!            end if
             ! Cierro archivo de deformaciones
             close(unit=fid_Fmacro)
         ! FIN EQUILIBRAR
@@ -270,6 +251,7 @@ program Malla_Nanofibras_Fortran
             end if
             read(fid_cf,*) vec_veces
             read(fid_cf,*) vec_drmags
+            read(fid_cf,*) fuerza_ref, fuerza_tol
             read(fid_cf,*) delta_t, dot_F11, dot_F22, F11_fin
             read(fid_cf,*) filename_curvacon
             read(fid_cf,*) opcion_guardar, dF_guardar
@@ -277,7 +259,7 @@ program Malla_Nanofibras_Fortran
             if (opcion_archivo==1) then
                 ! Caso de una sola malla
                 ! Recorro los Fmacro de la lista para hacer todos los equilibrios
-                call main_traccion(nombre_archivo, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
+                call main_traccion(nombre_archivo, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
 !            elseif (opcion_archivo==2) then
 !                stop
             else
@@ -288,6 +270,39 @@ program Malla_Nanofibras_Fortran
                 stop
             end if
         ! FIN TRACCION
+        ! --------------------------------------------------------------------------
+        ! UNIAXIAL
+        case ("Uniaxial")
+            ! Leo parametros
+            read(fid_cf,*) opcion_archivo, nombre_archivo
+            read(fid_cf,*) num_pasos_vibracion
+            if (allocated(vec_veces)) deallocate(vec_veces)
+            if (allocated(vec_drmags)) deallocate(vec_drmags)
+            if (num_pasos_vibracion>0) then
+                allocate( vec_veces(num_pasos_vibracion) )
+                allocate( vec_drmags(num_pasos_vibracion) )
+            end if
+            read(fid_cf,*) vec_veces
+            read(fid_cf,*) vec_drmags
+            read(fid_cf,*) fuerza_ref, fuerza_tol
+            read(fid_cf,*) delta_t, dot_F11, dot_F22, F11_fin
+            read(fid_cf,*) filename_curvacon
+            read(fid_cf,*) opcion_guardar, dF_guardar
+            !
+            if (opcion_archivo==1) then
+                ! Caso de una sola malla
+                ! Recorro los Fmacro de la lista para hacer todos los equilibrios
+                call main_uniaxial(nombre_archivo, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
+!            elseif (opcion_archivo==2) then
+!                stop
+            else
+                ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
+                write(*,*) "Error, opcion_archivo debe ser 1, y es: ", opcion_archivo
+                write(*,*) "En etiqueta: ", str_etiqueta
+                write(*,*) "En Instruccion: ", str_instruccion
+                stop
+            end if
+        ! FIN UNIAXIAL
         ! --------------------------------------------------------------------------
         case default
             write(*,*) "Instruccion desconocida: ", str_instruccion
