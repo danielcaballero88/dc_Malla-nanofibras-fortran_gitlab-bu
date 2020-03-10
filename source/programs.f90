@@ -38,9 +38,9 @@ subroutine main_intersectar(filename_malla_in, npasadas, periodicidad)
     DO WHILE (.true.)
         i = i+1
         WRITE(*,'(I4)', ADVANCE='no') i
-        CALL intersectar_fibras_3(MC, MC2, .FALSE., periodicidad, iStat1) ! dentro de la misma capa
+        CALL intersectar_fibras(MC, MC2, .FALSE., periodicidad, iStat1) ! dentro de la misma capa
         MC = MC2
-        CALL intersectar_fibras_3(MC, MC2, .TRUE., periodicidad, iStat2) ! con capas adyacentes
+        CALL intersectar_fibras(MC, MC2, .TRUE., periodicidad, iStat2) ! con capas adyacentes
         MC = MC2
         write(*,*) mc%nsegs
         IF ( (iStat1 == 1).AND.(iStat2 == 1) )  EXIT

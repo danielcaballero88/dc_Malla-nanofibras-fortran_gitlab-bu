@@ -323,17 +323,20 @@ SUBROUTINE intersectar_segmentos(rs1n1, rs1n2, rs2n1, rs2n2, r_in, iStatus)
     ! HAY VARIAS POSIBILIDADES
     ! 4: extremo-extremo
     IF ((inex11 .OR. inex12) .AND. (inex21 .OR. inex22)) THEN
+        ! Interseccion extremo-extremo, ocurre rara vez
 !        WRITE(*,*) " Interseccion tipo extremo-extremo. Por ahora no esta implementada."
         iStatus = -1
         RETURN
     END IF
     ! 3: extremo-medio
     IF ((inex11 .OR. inex12) .OR. (inex21 .OR. inex22)) THEN
+        ! Interseccion extremo-medio, ocurre rara vez
 !        WRITE(*,*) " Interseccion tipo extremo-medio. Por ahora no esta implementada."
         iStatus = -1
         RETURN
     END IF
     ! 2: medio-medio
+    ! la inmensa mayoria de las intersecciones
     ! chequeo redundante
     IF ( (s_in>0.d0) .AND. (s_in<s12(1)) ) THEN
         iStatus = 2
