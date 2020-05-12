@@ -8,7 +8,7 @@
 		<Build>
 			<Target title="Debug">
 				<Option output="Debug/malla_nanofibras_fortran" prefix_auto="1" extension_auto="1" />
-				<Option working_dir="temp/mallas" />
+				<Option working_dir="/home/dancab/Documents/academia/doctorado/articulos/multiscale_nanofibers_randomRVE_2/Calibracion_para_paper/mallas" />
 				<Option object_output="Debug/" />
 				<Option type="1" />
 				<Option compiler="gfortran" />

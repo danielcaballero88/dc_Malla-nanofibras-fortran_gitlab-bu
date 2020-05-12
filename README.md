@@ -168,7 +168,7 @@ Líneas:
 
 1. Traccion 
 2. [Opcion_archivo (integer)] [Archivo (character(len=120))]. Si Opcion_archivo = 3, en este caso, se empieza desde una malla previamente deformada, con un Fmacro dado en la malla.
-3. [npasos]. Número de pasos de vibración (para cada paso temporal se calcula un equilibrio mediante método vibracional). 
+3. [npasos]. Número de pasos de vibración (para cada paso temporal se calcula un equilibrio mediante método vibracional). Si vale 0 entonces se resuelve el caso afin.
 4. [vec_veces]. Número de veces que se vibra en cada paso.
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
 6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
@@ -181,7 +181,7 @@ Ejemplo:
 <pre>
 * 1
 Traccion 
-1	Malla_completa.txt 
+1	Malla_intersectada_simplificada.txt 
 4
 10    10    10    10
 10.d0    1.d0    0.1d0    0.01d0

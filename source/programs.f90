@@ -165,7 +165,7 @@ subroutine main_traccion(filename_malla_in, nparcon, parcon, num_pasos, lista_ve
     integer, intent(in) :: opcion_save
     real(8), intent(in) :: dF_save
     ! ----------
-    character(len=120) :: filename_malla_in2, filename_malla_out
+    character(len=120) :: filename_malla_in2, filename_malla_out, filename_curva2
     real(8) :: F11ini
     integer :: fid_curva
     real(8) :: time
@@ -175,7 +175,7 @@ subroutine main_traccion(filename_malla_in, nparcon, parcon, num_pasos, lista_ve
     integer :: nsaves
     real(8), allocatable :: lista_saves_F(:)
     logical, allocatable :: lista_saves_if(:)
-    logical :: listo_saves = .false.
+    logical :: listo_saves
     integer :: isave
     ! ----------
     integer :: f
@@ -196,8 +196,13 @@ subroutine main_traccion(filename_malla_in, nparcon, parcon, num_pasos, lista_ve
     write(*,*) "Leyendo Malla:"
     if (trim(filename_malla_in) == "default") then
         filename_malla_in2 = "Malla_i_s.txt"
+        filename_curva2 = "curva_sim.txt"
     else
-        filename_malla_in2 = trim(filename_malla_in)
+        filename_malla_in2 = "_i_s"
+        call modify_txt_filename(filename_malla_in, filename_malla_in2)
+        filename_malla_in2 = trim(filename_malla_in2)
+        filename_curva2 = "_c"
+        call modify_txt_filename(filename_malla_in, filename_curva2)
     end if
     write(*,*) "archivo: ", filename_malla_in2
     call leer_mallita(ms, filename_malla_in2, nparcon, parcon)
@@ -209,18 +214,19 @@ subroutine main_traccion(filename_malla_in, nparcon, parcon, num_pasos, lista_ve
         isave = count(lista_saves_if) + 1
         ! Abro un archivo viejo para continuar la curva constitutiva
         fid_curva = get_file_unit()
-        open(unit=fid_curva, file=trim(filename_curva), status="old", position="append", action="write")
+        open(unit=fid_curva, file=trim(filename_curva2), status="old", position="append", action="write")
     else
         ! Si la malla esta virge, empiezo desde deformacion nula
         Fmacro = reshape(source=[1.d0, 0.d0, 0.d0, 1.d0], shape=shape(Fmacro))
         isave = 1
         ! Abro un archivo nuevo para escribir la curva constitutiva
         fid_curva = get_file_unit()
-        open(unit=fid_curva, file=trim(filename_curva), status="replace")
+        open(unit=fid_curva, file=trim(filename_curva2), status="replace")
     end if
 
     ! Comienzo esquema temporal
     time = 0.d0
+    listo_saves = .false.
     do while ( Fmacro(1,1) .le. F11fin )
         ! Calculo el equilibrio de la malla para el Fmacro dado en este paso de tiempo
         call calcular_equilibrio(ms, num_pasos, lista_veces, lista_drmags, fzaref, fzatol, Fmacro)

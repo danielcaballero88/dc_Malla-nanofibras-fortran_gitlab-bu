@@ -260,8 +260,20 @@ program Malla_Nanofibras_Fortran
                 ! Caso de una sola malla
                 ! Recorro los Fmacro de la lista para hacer todos los equilibrios
                 call main_traccion(nombre_archivo, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
-!            elseif (opcion_archivo==2) then
-!                stop
+            elseif (opcion_archivo==2) then
+                ! Caso de una lista de mallas en un archivo
+                fid_lista_mallas = get_file_unit()
+                open(unit=fid_lista_mallas, file=trim(nombre_archivo), status="old")
+                read(fid_lista_mallas,*) nmallas
+                ! Recorro las mallas de la lista
+                do j_malla=1,nmallas
+                    read(fid_lista_mallas,*) nombre_malla
+                    write(*,*) "Traccion sobre malla:"
+                    write(*,*) nombre_malla
+                    ! Recorro los Fmacro de la lista para hacer todos los equilibrios
+                    call main_traccion(nombre_malla, numparam, param, num_pasos_vibracion, vec_veces, vec_drmags, fuerza_ref, fuerza_tol, delta_t, dot_F11, dot_F22, F11_fin, filename_curvacon, opcion_guardar, dF_guardar)
+                end do
+                ! Cierro el archivo de la lista de mallas
             else
                 ! Si no encontre opcion 1 o 2, entonces hay algun error!!!
                 write(*,*) "Error, opcion_archivo debe ser 1, y es: ", opcion_archivo
