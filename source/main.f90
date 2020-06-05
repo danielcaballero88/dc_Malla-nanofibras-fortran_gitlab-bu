@@ -4,11 +4,17 @@ program Malla_Nanofibras_Fortran
     use class_mallita
     USE Aux
     use programs
+    use class_instruccion, only : instruccion, read_from_configfile
     implicit none
     ! ==========================================================================
     ! ==========================================================================
     ! Current working directory
     CHARACTER(LEN=255) :: cwd
+    ! ---
+    ! Instrucciones
+    integer :: num_instruc
+    integer, allocatable :: lista_instruc(:)
+    type(instruccion), allocatable :: lista_instrucciones(:)
     ! ==========================================================================
     TYPE(MallaCom) :: MC, MC2
     TYPE(MallaSim) :: ms, ms2
@@ -16,8 +22,6 @@ program Malla_Nanofibras_Fortran
     integer :: fid_cf
     integer :: fid_lista_mallas
     integer :: nmallas
-    integer :: num_instruc
-    integer, allocatable :: lista_instruc(:)
     integer :: i_etiqueta
     character(len=3) :: str_etiqueta
     character(len=120) :: str_instruccion
@@ -76,6 +80,14 @@ program Malla_Nanofibras_Fortran
     read(fid_cf,*) num_instruc
     allocate( lista_instruc(num_instruc) )
     read(fid_cf,*) lista_instruc
+    ! -- NEW --
+    allocate( lista_instrucciones(num_instruc) )
+    do j_instr=1,num_instruc
+        i_etiqueta = lista_instruc(j_instr)
+        WRITE(str_etiqueta,'(A2,I1)') "* ", i_etiqueta
+        iStat = read_from_configfile(lista_instrucciones(j_instr), fid_cf, str_etiqueta)
+    end do
+    ! -- --- --
     ! Ya que estamos tambien busco y leo los parametros constitutivos
     iStat = FindStringInFile("* Parametros Constitutivos", fid_cf, .false.)
     if (iStat==0) then

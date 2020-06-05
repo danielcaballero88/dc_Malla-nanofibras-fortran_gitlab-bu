@@ -40,6 +40,7 @@
 		<Unit filename="source/Aux.f90">
 			<Option weight="0" />
 		</Unit>
+		<Unit filename="source/class_instruccion.f90" />
 		<Unit filename="source/class_malla_completa.f90">
 			<Option weight="1" />
 		</Unit>

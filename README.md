@@ -94,19 +94,6 @@ Líneas
 
 1. "Simplificar" 
 2. [Opcion_archivo (integer)] [Archivo (character(len=120))].
-3. [nParamCon]. Número de parámetros constitutivos 
-4. [ParamCon]. Array con parámetros constitutivos, el primer valor es un selector de ley constitutiva.
-
-#### Leyes constitutivas programadas 
-
-Según el valor de selector ( ParamCon(1) ) se toma una ley constitutiva u otra, por lo que cambian también el significado del resto de los parámetros constitutivos, así como su cantidad necesaria.
-
-1. Ley bilineal elástica. Parámetros: k1, k2.
-	+ k1 es la constante elástica en fuerza de fibras rectas a la tracción.
-	+ k2 es la constante elástica en fuerza de fibras enruladas.
-2. Ley bilineal elástica. Parámetros: Et, Eb.
-	+ Et es el módulo elástico de tensión ingenieril de fibras rectas a la tracción.
-	+ Eb es el módulo elástico de tensión ingenieril de fibras enruladas.
 
 Ejemplo: 
 
@@ -114,20 +101,20 @@ Ejemplo:
 * 4
 Simplificar 
 1	Malla_completa.txt 
-3
-2	2.9d9	2.9d6
 </pre>
 
 En este caso se tiene que la etiqueta Nro. 4 es "Simplificar".
 Se da un archivo de malla, de nombre "Malla\_completa.txt", por lo que se va a leer al archivo "Malla\_completa\_i.txt".
 El output va a ser un archivo de malla completa de nombre "Malla\_completa\_i\_s.txt".
-Además se dan 3 parámetros constitutivos en la línea siguiente, de los cuales el primero indica que se usa la ley constitutiva número 2, con los dos parámetros necesarios siguiendo.
-
 
 ### * Equilibrar 
 A partir de una malla simplificada se calcula el equilibrio **elástico** dada una deformación (tensor F macroscópico, que se aplica a los bordes).
 Si hay deformación plástica en las fibras se mantiene constante, no hay un avance temporal en esta instrucción.
+
 También se puede dar un archivo con muchos F para calcular una curva constitutiva.
+En tal caso hay que notar que para cada F de la lista, el equilibrio y la tensión homogeneizada correspondiente se calcula de forma independiente y corresponde a un caso elástico. 
+Si hay efectos viscosos, plásticos o de otra índole que dependan de la tasa de deformación o de la historia de deformaciones, habrá que recurrir a otro método.
+
 
 Líneas 
 
@@ -173,8 +160,7 @@ Líneas:
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
 6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
 7. [dT] [dotF11] [dotF22] [F11fin]. Paso temporal, tasa de deformación axial, tasa de deformación transversal y deformación axial final.
-8. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
-9. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
+8. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
 
 Ejemplo: 
 
@@ -203,7 +189,6 @@ Líneas:
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
 6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
 7. [dT] [dotF11] [t22] [F11fin]. Paso temporal, tasa de deformación axial, tracción transversal (=0.d0 para tracción uniaxial, otro valor si se desea) y deformación axial final.
-8. [Archivo_curva]. Nombre de archivo de curva constitutiva para output de Fmacro y Tmacro.
 9. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
 
 Ejemplo: 
