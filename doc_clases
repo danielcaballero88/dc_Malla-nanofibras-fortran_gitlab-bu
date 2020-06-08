@@ -1,0 +1,10 @@
+# Clases utilizadas y sus fuciones 
+
+## Instruccion 
+Cada instruccion a realizar se almacena en una variable de este tipo.
+Cada tipo de instruccion se lee de configfile (pero necesita recibir este archivo abierto)
+Si abre y cierra otros archivos (lista de mallas, lista de Fs) dependiendo de los parametros de la instruccion
+
+## Instrucciones 
+Basicamente constituye una lista de objetos 'Instruccion'
+Recibe el nombre del archivo y lo abre, por lo tanto tambien debe cerrarlo

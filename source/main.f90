@@ -5,6 +5,7 @@ program Malla_Nanofibras_Fortran
     USE Aux
     use programs
     use class_instruccion, only : instruccion, read_from_configfile
+    use class_instrucciones, only : instrucciones, init
     implicit none
     ! ==========================================================================
     ! ==========================================================================
@@ -12,6 +13,7 @@ program Malla_Nanofibras_Fortran
     CHARACTER(LEN=255) :: cwd
     ! ---
     ! Instrucciones
+    type(instrucciones) :: instr
     integer :: num_instruc
     integer, allocatable :: lista_instruc(:)
     type(instruccion), allocatable :: lista_instrucciones(:)
@@ -74,6 +76,11 @@ program Malla_Nanofibras_Fortran
     ! --------------------------------------------------------------------------
     ! Leer ConfigurationFile.txt para obtener instrucciones
     configfile = "ConfigurationFile.txt"
+    ! -- NEW --
+    call instr%init(configfile)
+    call instr%leer()
+    call instr%imprimir()
+    ! -- --- --
     fid_cf = get_file_unit()
     OPEN(unit=fid_cf, file=trim(configfile), status="old")
     iStat = FindStringInFile("* Numero de acciones", fid_cf, .true.)
@@ -85,6 +92,7 @@ program Malla_Nanofibras_Fortran
     do j_instr=1,num_instruc
         i_etiqueta = lista_instruc(j_instr)
         WRITE(str_etiqueta,'(A2,I1)') "* ", i_etiqueta
+        !iStat = lista_instrucciones(j_instr)%leer(fid_cf, str_etiqueta)
         iStat = read_from_configfile(lista_instrucciones(j_instr), fid_cf, str_etiqueta)
     end do
     ! -- --- --

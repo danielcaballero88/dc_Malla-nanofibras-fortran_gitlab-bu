@@ -8,12 +8,12 @@ module class_instruccion
     ! ----
     private
     ! ----
-    public :: instruccion
+    ! public :: instruccion
     public :: read_from_configfile
     ! ----
 
     ! ----------------------------------------------------------------------
-    type instruccion
+    type, public :: instruccion
         ! ----
         ! variables generales
         character(len=120) :: tipo  ! nombre de la instruccion a realizar
@@ -50,7 +50,9 @@ module class_instruccion
         ! (usa la mayoria de los metodos previos)
         real(8) :: ten22
         ! ----
-        contains
+    contains
+        ! ----
+        ! procedure :: leer => read_from_configfile
         ! ----
     end type
     ! ----------------------------------------------------------------------
@@ -339,6 +341,26 @@ contains
         !
     end function read_from_configfile_uniaxial
     ! ----------------------------------------------------------------------
+
+    ! ----------
+    subroutine imprimir_instruccion(this)
+        ! -----
+        implicit none
+        class(instruccion), intent(in) :: this
+        ! -----
+        select case (trim(this%tipo))
+            case ("Intersectar")
+            case ("Simplificar")
+            case ("Equilibrar")
+            case ("Traccion")
+            case ("Uniaxial")
+            case default
+                write(*,*) "Error, tipo de instruccion desconocido"
+                stop
+        end select
+        ! -----
+    end subroutine
+    ! ----------
 
 ! ==========================================================================
 end module class_instruccion

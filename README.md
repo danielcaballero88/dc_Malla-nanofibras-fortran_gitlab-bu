@@ -189,7 +189,7 @@ Líneas:
 5. [vec_drmags]. Magnitud del desplazamiento de cada nodo en cada paso.
 6. [fza_ref] [fza_tol]. Fuerza de referencia y fuerza tolerancia (ver en sección "Equilibrar").
 7. [dT] [dotF11] [t22] [F11fin]. Paso temporal, tasa de deformación axial, tracción transversal (=0.d0 para tracción uniaxial, otro valor si se desea) y deformación axial final.
-9. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
+8. [Opcion_guardar] [dF_guardar]. Indica si se guardan mallas intermedas (si se escriben los archivos, 1=si) y con que intervalos en F11 se hace.
 
 Ejemplo: 
 
